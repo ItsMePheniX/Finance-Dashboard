@@ -100,6 +100,120 @@ textarea {
 	color: #4d5f69;
 }
 
+.hintText {
+	margin: 6px 0 0;
+	font-size: 13px;
+	color: #5f6f78;
+}
+
+.tokenMetaRow {
+	margin-top: 8px;
+	display: flex;
+	align-items: center;
+	gap: 10px;
+	flex-wrap: wrap;
+}
+
+.tokenMetaText {
+	font-size: 13px;
+	color: #4d5f69;
+}
+
+.roleLine {
+	margin-top: 12px;
+}
+
+.viewTabs {
+	margin-top: 12px;
+	display: flex;
+	gap: 10px;
+	flex-wrap: wrap;
+}
+
+.roleBadgeRow {
+	margin-top: 10px;
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	flex-wrap: wrap;
+}
+
+.roleBadgeLabel {
+	font-size: 13px;
+	color: #4d5f69;
+	font-weight: 600;
+}
+
+.roleBadge {
+	display: inline-flex;
+	align-items: center;
+	border-radius: 999px;
+	padding: 4px 12px;
+	font-size: 12px;
+	font-weight: 700;
+	border: 1px solid transparent;
+}
+
+.roleBadgeAdmin {
+	background: #fde8d6;
+	color: #8b3a00;
+	border-color: #f5c399;
+}
+
+.roleBadgeAnalyst {
+	background: #dff1ff;
+	color: #0c4f83;
+	border-color: #b7dbfb;
+}
+
+.roleBadgeViewer {
+	background: #eaf3e3;
+	color: #2f5e1d;
+	border-color: #c9dfbb;
+}
+
+.roleBadgeNeutral {
+	background: #edf2f5;
+	color: #42515a;
+	border-color: #d0dde4;
+}
+
+.tabButton {
+	background: #edf5f7;
+	color: #1c2830;
+	border: 1px solid #c7d8df;
+}
+
+.tabButton.active {
+	background: #0d6d81;
+	color: #fff;
+	border-color: #0d6d81;
+}
+
+.tokenChip {
+	display: inline-flex;
+	align-items: center;
+	border-radius: 999px;
+	padding: 4px 10px;
+	font-size: 12px;
+	font-weight: 700;
+}
+
+.tokenChipOk {
+	background: #daf3e5;
+	color: #115f38;
+}
+
+.tokenChipError {
+	background: #fbdedb;
+	color: #8b1e16;
+}
+
+.tokenChipNeutral {
+	background: #edf2f5;
+	color: #42515a;
+}
+
 .tokenInput {
 	margin-top: 8px;
 	width: 100%;
@@ -179,17 +293,116 @@ dd {
 	background: #fff;
 }
 
+.inlineEdit {
+	width: 100%;
+}
+
+.inlineEditGrid {
+	margin-top: 0;
+}
+
 .recordTitle {
 	margin: 0 0 4px;
 	font-weight: 700;
+}
+
+.metricGrid {
+	margin-top: 14px;
+	display: grid;
+	grid-template-columns: repeat(3, minmax(0, 1fr));
+	gap: 10px;
+}
+
+.metricCard {
+	border: 1px solid #d4dde2;
+	border-radius: 12px;
+	padding: 12px;
+	background: #fff;
+}
+
+.tableWrap {
+	margin-top: 14px;
+	overflow-x: auto;
+}
+
+table {
+	width: 100%;
+	border-collapse: collapse;
+	background: #fff;
+	border: 1px solid #d4dde2;
+	border-radius: 12px;
+}
+
+th,
+td {
+	padding: 10px;
+	border-bottom: 1px solid #e5ecef;
+	text-align: left;
+	font-size: 14px;
+}
+
+th {
+	font-size: 13px;
+	color: #4d5f69;
 }
 
 .compact {
 	margin-top: 0;
 }
 
+.compactTop {
+	margin-top: 10px;
+}
+
+.emptyState {
+	padding: 8px 0;
+}
+
+.pagerRow {
+	justify-content: flex-end;
+	margin-top: 12px;
+}
+
+.pagerText {
+	font-size: 13px;
+	font-weight: 600;
+	color: #4d5f69;
+}
+
+.modalBackdrop {
+	position: fixed;
+	inset: 0;
+	background: #13202880;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	padding: 20px;
+	z-index: 20;
+}
+
+.modalCard {
+	width: min(520px, 100%);
+	background: #fff;
+	border: 1px solid #c9d5dc;
+	border-radius: 14px;
+	padding: 18px;
+	box-shadow: 0 18px 40px #0f171d30;
+}
+
+.modalCard h3 {
+	margin: 0 0 10px;
+}
+
+.modalActions {
+	justify-content: flex-end;
+}
+
 @media (max-width: 820px) {
 	.gridForm {
+		grid-template-columns: 1fr;
+	}
+
+	.metricGrid {
 		grid-template-columns: 1fr;
 	}
 
