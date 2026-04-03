@@ -98,7 +98,7 @@ func (s *AuthService) SetRefreshTokenCookie(w http.ResponseWriter, refreshToken 
 		Path:     "/",
 		HttpOnly: true,
 		Secure:   s.cfg.AppEnv != "development",
-		SameSite: http.SameSiteLaxMode,
+		SameSite: refreshCookieSameSite(s.cfg.AppEnv),
 		MaxAge:   maxAge,
 	})
 }
@@ -110,9 +110,16 @@ func (s *AuthService) ClearRefreshTokenCookie(w http.ResponseWriter) {
 		Path:     "/",
 		HttpOnly: true,
 		Secure:   s.cfg.AppEnv != "development",
-		SameSite: http.SameSiteLaxMode,
+		SameSite: refreshCookieSameSite(s.cfg.AppEnv),
 		MaxAge:   -1,
 	})
+}
+
+func refreshCookieSameSite(appEnv string) http.SameSite {
+	if strings.EqualFold(appEnv, "development") {
+		return http.SameSiteLaxMode
+	}
+	return http.SameSiteNoneMode
 }
 
 func (s *AuthService) GetRefreshTokenCookie(r *http.Request) (string, error) {
