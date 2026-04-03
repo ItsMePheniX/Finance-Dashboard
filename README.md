@@ -160,6 +160,22 @@ curl -sS -X PATCH "$API/api/users/<USER_ID>/status" \
   -d '{"is_active":false}' | jq
 ```
 
+## Deployment Readiness
+
+This repository is deployment-ready for:
+
+- Backend: Render Web Service (Go)
+- Frontend: Vercel (Vite)
+- Deployment runbook: `docs/deployment.md`
+
+Recommended deployment order:
+
+1. Deploy backend to Render and verify `/health`.
+2. Set frontend `VITE_API_BASE_URL` in Vercel to the Render backend URL.
+3. Deploy frontend to Vercel.
+4. Update backend `FRONTEND_URL` to the Vercel frontend URL.
+5. Update `GOOGLE_REDIRECT_URL` to `https://<render-backend-domain>/auth/google/callback`.
+
 ## Assumptions and Tradeoffs
 
 - OAuth is Google-only for this assignment to keep auth setup simple and demonstrable.

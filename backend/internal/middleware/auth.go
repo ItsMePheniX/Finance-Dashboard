@@ -71,6 +71,10 @@ func GetAuthContext(ctx context.Context) (AuthContext, bool) {
 	return auth, ok
 }
 
+func WithAuthContext(ctx context.Context, auth AuthContext) context.Context {
+	return context.WithValue(ctx, authCtxKey, auth)
+}
+
 func parseBearerToken(header string) string {
 	if header == "" {
 		return ""

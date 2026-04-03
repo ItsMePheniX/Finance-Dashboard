@@ -32,6 +32,14 @@ type ListRecordsFilter struct {
 	Offset    int
 }
 
+type ListRecordsResult struct {
+	Records []FinancialRecord `json:"records"`
+	Total   int               `json:"total"`
+	Limit   int               `json:"limit"`
+	Offset  int               `json:"offset"`
+	HasMore bool              `json:"has_more"`
+}
+
 type CreateRecordInput struct {
 	Category   string  `json:"category"`
 	Amount     float64 `json:"amount"`
@@ -78,9 +86,9 @@ func NewRecordService(db *sql.DB) *RecordService {
 	return &RecordService{db: db}
 }
 
-func (s *RecordService) ListForAuthUser(ctx context.Context, authUserID string, filter ListRecordsFilter) ([]FinancialRecord, error) {
+func (s *RecordService) ListForAuthUser(ctx context.Context, authUserID string, filter ListRecordsFilter) (ListRecordsResult, error) {
 	if _, err := uuid.Parse(authUserID); err != nil {
-		return nil, fmt.Errorf("invalid auth user id")
+		return ListRecordsResult{}, fmt.Errorf("invalid auth user id")
 	}
 
 	limit := filter.Limit
@@ -90,6 +98,33 @@ func (s *RecordService) ListForAuthUser(ctx context.Context, authUserID string, 
 	offset := filter.Offset
 	if offset < 0 {
 		offset = 0
+	}
+
+	normalizedType := normalizeRecordType(filter.Type)
+	normalizedCategory := strings.TrimSpace(filter.Category)
+	normalizedStartDate := strings.TrimSpace(filter.StartDate)
+	normalizedEndDate := strings.TrimSpace(filter.EndDate)
+
+	countQuery := `
+		SELECT COUNT(*)
+		FROM financial_records r
+		JOIN users u ON u.id = r.user_id
+		WHERE u.auth_user_id = $1::uuid
+		  AND ($2 = '' OR r.type = $2)
+		  AND ($3 = '' OR lower(r.category) = lower($3))
+		  AND ($4 = '' OR r.record_date >= $4::date)
+		  AND ($5 = '' OR r.record_date <= $5::date)
+	`
+
+	var total int
+	if err := s.db.QueryRowContext(ctx, countQuery,
+		authUserID,
+		normalizedType,
+		normalizedCategory,
+		normalizedStartDate,
+		normalizedEndDate,
+	).Scan(&total); err != nil {
+		return ListRecordsResult{}, err
 	}
 
 	query := `
@@ -117,15 +152,15 @@ func (s *RecordService) ListForAuthUser(ctx context.Context, authUserID string, 
 
 	rows, err := s.db.QueryContext(ctx, query,
 		authUserID,
-		normalizeRecordType(filter.Type),
-		strings.TrimSpace(filter.Category),
-		strings.TrimSpace(filter.StartDate),
-		strings.TrimSpace(filter.EndDate),
+		normalizedType,
+		normalizedCategory,
+		normalizedStartDate,
+		normalizedEndDate,
 		limit,
 		offset,
 	)
 	if err != nil {
-		return nil, err
+		return ListRecordsResult{}, err
 	}
 	defer rows.Close()
 
@@ -144,15 +179,21 @@ func (s *RecordService) ListForAuthUser(ctx context.Context, authUserID string, 
 			&rec.CreatedAt,
 			&rec.UpdatedAt,
 		); err != nil {
-			return nil, err
+			return ListRecordsResult{}, err
 		}
 		result = append(result, rec)
 	}
 	if err := rows.Err(); err != nil {
-		return nil, err
+		return ListRecordsResult{}, err
 	}
 
-	return result, nil
+	return ListRecordsResult{
+		Records: result,
+		Total:   total,
+		Limit:   limit,
+		Offset:  offset,
+		HasMore: offset+len(result) < total,
+	}, nil
 }
 
 func (s *RecordService) CreateForAuthUser(ctx context.Context, authUserID string, input CreateRecordInput) (FinancialRecord, error) {

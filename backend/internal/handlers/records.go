@@ -38,14 +38,18 @@ func (h *RecordsHandler) ListRecords(w http.ResponseWriter, r *http.Request) {
 		Offset:    offset,
 	}
 
-	records, err := h.records.ListForAuthUser(r.Context(), auth.UserID, filter)
+	result, err := h.records.ListForAuthUser(r.Context(), auth.UserID, filter)
 	if err != nil {
 		WriteError(w, http.StatusInternalServerError, "internal_error", "failed to list records")
 		return
 	}
 
 	WriteJSON(w, http.StatusOK, map[string]any{
-		"records": records,
+		"records":  result.Records,
+		"total":    result.Total,
+		"limit":    result.Limit,
+		"offset":   result.Offset,
+		"has_more": result.HasMore,
 	})
 }
 

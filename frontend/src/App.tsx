@@ -76,6 +76,14 @@ type TrendPoint = {
   net_balance: number
 }
 
+type RecordsListResponse = {
+  records: FinancialRecord[]
+  total?: number
+  limit?: number
+  offset?: number
+  has_more?: boolean
+}
+
 type AdminUser = {
   id: string
   email: string
@@ -187,6 +195,8 @@ function App() {
   const [isRefreshingSession, setIsRefreshingSession] = useState(false)
   const [limit, setLimit] = useState(10)
   const [offset, setOffset] = useState(0)
+  const [recordsTotal, setRecordsTotal] = useState(0)
+  const [hasMoreRecords, setHasMoreRecords] = useState(false)
   const [pendingDeleteRecord, setPendingDeleteRecord] = useState<FinancialRecord | null>(null)
   const [summary, setSummary] = useState<SummaryData | null>(null)
   const [categoryTotals, setCategoryTotals] = useState<CategoryTotal[]>([])
@@ -508,11 +518,11 @@ function App() {
       query.set('offset', String(nextOffset))
 
       const suffix = query.toString() ? `?${query.toString()}` : ''
-      const result = (await apiRequest(`/api/records${suffix}`)) as {
-        records: FinancialRecord[]
-      }
+      const result = (await apiRequest(`/api/records${suffix}`)) as RecordsListResponse
       setRecords(result.records ?? [])
-      setOffset(nextOffset)
+      setOffset(result.offset ?? nextOffset)
+      setRecordsTotal(result.total ?? (result.records ?? []).length)
+      setHasMoreRecords(result.has_more ?? (result.records ?? []).length === limit)
       setStatusMessage('Records loaded')
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : 'failed to load records')
@@ -624,7 +634,8 @@ function App() {
   }
 
   const page = Math.floor(offset / limit) + 1
-  const hasNextPage = records.length === limit
+  const totalPages = Math.max(1, Math.ceil(recordsTotal / limit))
+  const hasNextPage = hasMoreRecords
   const canGoPrev = offset > 0
 
   return (
@@ -1070,6 +1081,7 @@ function App() {
 
       <section className="card">
         <h2>Records ({records.length})</h2>
+        <p className="muted">Total matching records: {recordsTotal}</p>
         {records.length === 0 ? (
           <div className="emptyState">
             <p className="muted">No records found.</p>
@@ -1197,7 +1209,7 @@ function App() {
           >
             Previous
           </button>
-          <span className="pagerText">Page {page}</span>
+          <span className="pagerText">Page {page} of {totalPages}</span>
           <button
             type="button"
             className="ghost"
