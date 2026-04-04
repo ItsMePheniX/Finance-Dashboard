@@ -116,13 +116,16 @@ export default function UsersPage() {
     try {
       const data = await apiRequest<{ users: ApiUserRecord[] }>('/api/users');
       const mapped = data.users.map((item) => {
-        const normalizedRoles = Array.from(
-          new Set(
-            [...(item.roles ?? []), item.direct_role ?? '']
-              .map((role) => role.toLowerCase().trim())
-              .filter(Boolean)
-          )
+        const normalizedListRoles = Array.from(
+          new Set((item.roles ?? []).map((role) => role.toLowerCase().trim()).filter(Boolean))
         );
+        const normalizedDirectRole = (item.direct_role ?? '').toLowerCase().trim();
+        const normalizedRoles =
+          normalizedListRoles.length > 0
+            ? normalizedListRoles
+            : normalizedDirectRole
+              ? [normalizedDirectRole]
+              : [];
         const displayName = userName(item.full_name, item.username, item.email);
         return {
           id: item.id,

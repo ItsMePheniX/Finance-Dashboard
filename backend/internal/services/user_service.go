@@ -122,21 +122,52 @@ func (s *UserService) AssignRole(ctx context.Context, userID string, role string
 	if _, err := uuid.Parse(userID); err != nil {
 		return fmt.Errorf("invalid user id")
 	}
+	if !isValidAppRole(role) {
+		return fmt.Errorf("invalid role")
+	}
+	if _, err := uuid.Parse(grantedByAuthID); err != nil {
+		return fmt.Errorf("invalid granted by auth user id")
+	}
 
 	query := `
 		WITH admin_user AS (
-			SELECT id FROM users WHERE auth_user_id = $3::uuid
+			SELECT id
+			FROM users
+			WHERE auth_user_id = $3::uuid
+		),
+		target_user AS (
+			SELECT id
+			FROM users
+			WHERE id = $1::uuid
 		),
 		cleared AS (
 			DELETE FROM user_roles
-			WHERE user_id = $1::uuid
+			WHERE user_id IN (SELECT id FROM target_user)
+			RETURNING user_id
 		)
 		INSERT INTO user_roles (user_id, role, granted_by)
-		VALUES ($1::uuid, $2::app_role, (SELECT id FROM admin_user))
+		SELECT
+			tu.id,
+			$2::app_role,
+			(SELECT id FROM admin_user)
+		FROM target_user tu
+		LEFT JOIN cleared c ON c.user_id = tu.id
 	`
 
-	_, err := s.db.ExecContext(ctx, query, userID, role, grantedByAuthID)
-	return err
+	result, err := s.db.ExecContext(ctx, query, userID, role, grantedByAuthID)
+	if err != nil {
+		return err
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if rowsAffected == 0 {
+		return fmt.Errorf("user not found")
+	}
+
+	return nil
 }
 
 func (s *UserService) RemoveRole(ctx context.Context, userID string, role string) error {
