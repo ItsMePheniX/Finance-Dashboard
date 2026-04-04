@@ -3,9 +3,10 @@ import type { Transaction } from '../types';
 
 interface RecentTransactionsProps {
   transactions: Transaction[];
+  onViewAll?: () => void;
 }
 
-export default function RecentTransactions({ transactions }: RecentTransactionsProps) {
+export default function RecentTransactions({ transactions, onViewAll }: RecentTransactionsProps) {
   return (
     <div
       id="recent-transactions"
@@ -41,6 +42,7 @@ export default function RecentTransactions({ transactions }: RecentTransactionsP
         </div>
         <button
           id="view-all-btn"
+          onClick={onViewAll}
           style={{
             display: 'flex',
             alignItems: 'center',
@@ -72,6 +74,18 @@ export default function RecentTransactions({ transactions }: RecentTransactionsP
 
       {/* Transactions list */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+        {transactions.length === 0 && (
+          <div
+            style={{
+              padding: '14px 8px',
+              color: 'var(--color-text-muted)',
+              fontSize: '13px',
+            }}
+          >
+            No recent transactions match your search.
+          </div>
+        )}
+
         {transactions.map((txn, idx) => (
           <div
             key={txn.id}

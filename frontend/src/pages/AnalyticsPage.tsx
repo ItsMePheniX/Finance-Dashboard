@@ -15,7 +15,7 @@ import {
   LineChart,
   Line,
 } from 'recharts';
-import { TrendingUp, TrendingDown, DollarSign, ArrowUpRight } from 'lucide-react';
+import { TrendingUp, TrendingDown, IndianRupee, ArrowUpRight } from 'lucide-react';
 import { apiRequest } from '../api/client';
 
 type SummaryResponse = {
@@ -229,7 +229,7 @@ export default function AnalyticsPage() {
         value: formatPercent(savingsRate),
         delta: totalIncome > 0 ? `${formatCurrency(summary?.net_balance ?? 0)} net` : 'No data',
         up: savingsRate >= 0,
-        icon: DollarSign,
+        icon: IndianRupee,
       },
       {
         label: 'Expense ratio',

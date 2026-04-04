@@ -6,6 +6,8 @@ interface TopBarProps {
   onPeriodChange: (period: TimePeriod) => void;
   userRole: UserRole;
   onAddRecord?: () => void;
+  searchValue: string;
+  onSearchChange: (value: string) => void;
 }
 
 const periods: { id: TimePeriod; label: string }[] = [
@@ -15,7 +17,14 @@ const periods: { id: TimePeriod; label: string }[] = [
   { id: 'custom', label: 'Custom' },
 ];
 
-export default function TopBar({ activePeriod, onPeriodChange, userRole, onAddRecord }: TopBarProps) {
+export default function TopBar({
+  activePeriod,
+  onPeriodChange,
+  userRole,
+  onAddRecord,
+  searchValue,
+  onSearchChange,
+}: TopBarProps) {
   const canAddRecord = userRole === 'Admin' || userRole === 'NormalUser';
 
   return (
@@ -114,7 +123,9 @@ export default function TopBar({ activePeriod, onPeriodChange, userRole, onAddRe
           <input
             id="search-input"
             type="text"
-            placeholder="Search..."
+            value={searchValue}
+            onChange={(event) => onSearchChange(event.target.value)}
+            placeholder="Search recent transactions..."
             style={{
               background: 'none',
               border: 'none',

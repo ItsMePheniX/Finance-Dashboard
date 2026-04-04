@@ -1,8 +1,9 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent } from 'react';
 import {
   Search,
   Filter,
   Download,
+  Upload,
   ChevronLeft,
   ChevronRight,
   ArrowUpDown,
@@ -24,6 +25,20 @@ interface TransactionRow {
   icon: string;
 }
 
+type ImportRecordInput = {
+  category: string;
+  amount: number;
+  type: 'income' | 'expense';
+  currency: string;
+  note: string;
+  record_date: string;
+};
+
+type ParsedCsv = {
+  headers: string[];
+  rows: Record<string, string>[];
+};
+
 type ApiRecord = {
   id: string;
   category: string;
@@ -38,13 +53,154 @@ const types = ['All', 'Income', 'Expense'];
 
 const PAGE_SIZE = 8;
 
+const REQUIRED_IMPORT_COLUMNS = ['category', 'amount', 'type'];
+
+function normalizeHeader(header: string): string {
+  return header.trim().toLowerCase().replace(/\s+/g, '_');
+}
+
+function parseCsv(csvText: string): ParsedCsv {
+  const text = csvText.replace(/^\uFEFF/, '').trim();
+  if (!text) {
+    return { headers: [], rows: [] };
+  }
+
+  const parsedRows: string[][] = [];
+  let row: string[] = [];
+  let value = '';
+  let inQuotes = false;
+
+  for (let i = 0; i < text.length; i += 1) {
+    const char = text[i];
+
+    if (char === '"') {
+      if (inQuotes && text[i + 1] === '"') {
+        value += '"';
+        i += 1;
+      } else {
+        inQuotes = !inQuotes;
+      }
+      continue;
+    }
+
+    if (char === ',' && !inQuotes) {
+      row.push(value.trim());
+      value = '';
+      continue;
+    }
+
+    if ((char === '\n' || char === '\r') && !inQuotes) {
+      if (char === '\r' && text[i + 1] === '\n') {
+        i += 1;
+      }
+      row.push(value.trim());
+      if (row.some((cell) => cell.length > 0)) {
+        parsedRows.push(row);
+      }
+      row = [];
+      value = '';
+      continue;
+    }
+
+    value += char;
+  }
+
+  if (value.length > 0 || row.length > 0) {
+    row.push(value.trim());
+    if (row.some((cell) => cell.length > 0)) {
+      parsedRows.push(row);
+    }
+  }
+
+  if (parsedRows.length === 0) {
+    return { headers: [], rows: [] };
+  }
+
+  const headers = parsedRows[0].map(normalizeHeader);
+  if (headers.some((header) => !header)) {
+    throw new Error('CSV header contains an empty column name.');
+  }
+
+  const rows = parsedRows
+    .slice(1)
+    .filter((cells) => cells.some((cell) => cell.trim() !== ''))
+    .map((cells) => {
+      const record: Record<string, string> = {};
+      headers.forEach((header, index) => {
+        record[header] = (cells[index] ?? '').trim();
+      });
+      return record;
+    });
+
+  return { headers, rows };
+}
+
+function normalizeRecordDate(value: string, rowNumber: number): string {
+  if (!value) {
+    return new Date().toISOString().slice(0, 10);
+  }
+
+  const normalized = value.trim();
+  if (/^\d{4}-\d{2}-\d{2}$/.test(normalized)) {
+    return normalized;
+  }
+
+  const parsed = new Date(normalized);
+  if (Number.isNaN(parsed.getTime())) {
+    throw new Error(`Row ${rowNumber}: invalid record date "${value}".`);
+  }
+
+  return parsed.toISOString().slice(0, 10);
+}
+
+function toImportRecord(row: Record<string, string>, rowNumber: number): ImportRecordInput {
+  const category = (row.category ?? '').trim();
+  if (!category) {
+    throw new Error(`Row ${rowNumber}: category is required.`);
+  }
+
+  const amount = Number(row.amount);
+  if (!Number.isFinite(amount) || amount <= 0) {
+    throw new Error(`Row ${rowNumber}: amount must be greater than zero.`);
+  }
+
+  const type = (row.type ?? '').trim().toLowerCase();
+  if (type !== 'income' && type !== 'expense') {
+    throw new Error(`Row ${rowNumber}: type must be either income or expense.`);
+  }
+
+  const currency = (row.currency ?? 'INR').trim().toUpperCase() || 'INR';
+  const note = (row.note ?? row.description ?? '').trim();
+  const recordDate = normalizeRecordDate(row.record_date ?? row.date ?? '', rowNumber);
+
+  return {
+    category,
+    amount,
+    type,
+    currency,
+    note,
+    record_date: recordDate,
+  };
+}
+
+function escapeCsvValue(value: string | number): string {
+  const text = String(value);
+  if (/[",\n]/.test(text)) {
+    return `"${text.replace(/"/g, '""')}"`;
+  }
+  return text;
+}
+
 export default function TransactionsPage() {
   const { user } = useAuth();
   const canAdd = user?.role === 'Admin' || user?.role === 'NormalUser';
+  const importFileRef = useRef<HTMLInputElement | null>(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [records, setRecords] = useState<ApiRecord[]>([]);
   const [loading, setLoading] = useState(true);
+  const [importing, setImporting] = useState(false);
   const [error, setError] = useState('');
+  const [notice, setNotice] = useState('');
 
   const [search, setSearch] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('All');
@@ -165,6 +321,140 @@ export default function TransactionsPage() {
     paddingRight: '32px',
   };
 
+  const handleExport = () => {
+    setError('');
+    setNotice('');
+
+    if (filtered.length === 0) {
+      setError('No transactions available to export.');
+      return;
+    }
+
+    const csvRows = [
+      ['category', 'amount', 'type', 'currency', 'note', 'record_date'],
+      ...filtered.map((txn) => [
+        txn.category,
+        txn.amount,
+        txn.type,
+        txn.vendor,
+        txn.description,
+        txn.date,
+      ]),
+    ];
+
+    const content = csvRows
+      .map((row) => row.map((cell) => escapeCsvValue(cell)).join(','))
+      .join('\n');
+
+    const blob = new Blob([content], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement('a');
+    anchor.href = url;
+    anchor.download = `transactions-${new Date().toISOString().slice(0, 10)}.csv`;
+    anchor.click();
+    URL.revokeObjectURL(url);
+
+    setNotice(`Exported ${filtered.length} transaction${filtered.length === 1 ? '' : 's'}.`);
+  };
+
+  const handleImportClick = () => {
+    if (importing || !canAdd) {
+      return;
+    }
+    importFileRef.current?.click();
+  };
+
+  const handleImportFile = async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+
+    if (!file) {
+      return;
+    }
+
+    setError('');
+    setNotice('');
+    setImporting(true);
+
+    try {
+      const csvText = await file.text();
+      const parsed = parseCsv(csvText);
+
+      if (parsed.headers.length === 0) {
+        throw new Error('CSV file is empty.');
+      }
+
+      const missingColumns = REQUIRED_IMPORT_COLUMNS.filter((column) => !parsed.headers.includes(column));
+      if (missingColumns.length > 0) {
+        throw new Error(`CSV is missing required columns: ${missingColumns.join(', ')}.`);
+      }
+
+      if (parsed.rows.length === 0) {
+        throw new Error('CSV has no data rows to import.');
+      }
+
+      const importRows: Array<{ rowNumber: number; payload: ImportRecordInput }> = [];
+      const failures: string[] = [];
+
+      parsed.rows.forEach((row, index) => {
+        const rowNumber = index + 2;
+        try {
+          importRows.push({ rowNumber, payload: toImportRecord(row, rowNumber) });
+        } catch (validationError) {
+          const message = validationError instanceof Error ? validationError.message : 'invalid row';
+          failures.push(message);
+        }
+      });
+
+      if (importRows.length === 0) {
+        const preview = failures.slice(0, 3).join(' | ');
+        const suffix = failures.length > 3 ? ` | +${failures.length - 3} more` : '';
+        setError(`No valid rows to import. ${preview}${suffix}`);
+        return;
+      }
+
+      let successCount = 0;
+
+      for (let index = 0; index < importRows.length; index += 1) {
+        const { payload, rowNumber } = importRows[index];
+
+        try {
+          await apiRequest<{ record: unknown }>('/api/records', {
+            method: 'POST',
+            body: payload,
+          });
+          successCount += 1;
+        } catch (requestError) {
+          const message = requestError instanceof Error ? requestError.message : 'request failed';
+          failures.push(`Row ${rowNumber}: ${message}`);
+        }
+      }
+
+      if (successCount > 0) {
+        await loadRecords();
+        setPage(1);
+      }
+
+      if (failures.length > 0) {
+        const preview = failures.slice(0, 3).join(' | ');
+        const suffix = failures.length > 3 ? ` | +${failures.length - 3} more` : '';
+        setError(`Imported ${successCount} rows, failed ${failures.length}. ${preview}${suffix}`);
+      }
+
+      if (successCount > 0) {
+        setNotice(`Imported ${successCount} transaction${successCount === 1 ? '' : 's'}.`);
+      }
+
+      if (successCount === 0 && failures.length === 0) {
+        setError('No valid rows were imported.');
+      }
+    } catch (importError) {
+      setError(importError instanceof Error ? importError.message : 'Failed to import transactions.');
+    } finally {
+      setImporting(false);
+    }
+  };
+
   return (
     <div className="animate-fade-in" style={{ padding: '28px' }}>
       {/* Header */}
@@ -178,6 +468,7 @@ export default function TransactionsPage() {
         <div style={{ display: 'flex', gap: '10px' }}>
           <button
             id="export-btn"
+            onClick={handleExport}
             style={{
               display: 'flex', alignItems: 'center', gap: '6px', padding: '9px 16px',
               borderRadius: 'var(--radius-md)', border: '1px solid var(--color-border-card)',
@@ -190,6 +481,41 @@ export default function TransactionsPage() {
           >
             <Download size={15} /> Export
           </button>
+          {canAdd && (
+            <>
+              <input
+                ref={importFileRef}
+                type="file"
+                accept=".csv,text/csv"
+                onChange={handleImportFile}
+                style={{ display: 'none' }}
+              />
+              <button
+                id="import-btn"
+                onClick={handleImportClick}
+                disabled={importing}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: '6px', padding: '9px 16px',
+                  borderRadius: 'var(--radius-md)', border: '1px solid var(--color-border-card)',
+                  backgroundColor: 'transparent', color: 'var(--color-text-secondary)',
+                  cursor: importing ? 'not-allowed' : 'pointer', fontSize: '13px', fontWeight: 500, fontFamily: 'inherit',
+                  transition: 'all 0.2s ease',
+                  opacity: importing ? 0.7 : 1,
+                }}
+                onMouseEnter={(e) => {
+                  if (importing) return;
+                  e.currentTarget.style.borderColor = 'var(--color-accent-blue)';
+                  e.currentTarget.style.color = 'var(--color-text-primary)';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.borderColor = 'var(--color-border-card)';
+                  e.currentTarget.style.color = 'var(--color-text-secondary)';
+                }}
+              >
+                <Upload size={15} /> {importing ? 'Importing...' : 'Import'}
+              </button>
+            </>
+          )}
           {canAdd && (
             <button
               id="add-txn-btn"
@@ -295,6 +621,22 @@ export default function TransactionsPage() {
         </div>
       )}
 
+      {notice && (
+        <div
+          style={{
+            marginBottom: '12px',
+            borderRadius: 'var(--radius-md)',
+            border: '1px solid rgba(52, 211, 153, 0.35)',
+            backgroundColor: 'var(--color-accent-green-soft)',
+            padding: '10px 12px',
+            color: 'var(--color-accent-green)',
+            fontSize: '13px',
+          }}
+        >
+          {notice}
+        </div>
+      )}
+
       {loading && (
         <div style={{ marginBottom: '12px', fontSize: '13px', color: 'var(--color-text-muted)' }}>
           Loading transactions...
@@ -361,9 +703,6 @@ export default function TransactionsPage() {
             <div style={{ minWidth: 0 }}>
               <div style={{ fontSize: '14px', fontWeight: 600, color: 'var(--color-text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                 {txn.description} — {txn.vendor}
-              </div>
-              <div style={{ fontSize: '11px', color: 'var(--color-text-muted)', marginTop: '2px' }}>
-                {txn.id}
               </div>
             </div>
             <span style={{ fontSize: '13px', color: 'var(--color-text-secondary)' }}>{txn.category}</span>

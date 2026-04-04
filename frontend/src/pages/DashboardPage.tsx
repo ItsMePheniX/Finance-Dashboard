@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import type { CategoryExpense, MetricCard, MonthlyData, TimePeriod, Transaction } from '../types';
 import TopBar from '../components/TopBar';
 import MetricsRow from '../components/MetricsRow';
@@ -85,7 +86,9 @@ function queryFromPeriod(period: TimePeriod): string {
 
 export default function DashboardPage() {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [activePeriod, setActivePeriod] = useState<TimePeriod>('this_month');
+  const [searchQuery, setSearchQuery] = useState('');
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -174,6 +177,24 @@ export default function DashboardPage() {
     }));
   }, [summary]);
 
+  const visibleRecentTransactions = useMemo<Transaction[]>(() => {
+    const query = searchQuery.trim().toLowerCase();
+    if (!query) {
+      return recentTransactions;
+    }
+
+    return recentTransactions.filter((txn) => {
+      const amountText = String(txn.amount);
+      return (
+        txn.description.toLowerCase().includes(query) ||
+        txn.vendor.toLowerCase().includes(query) ||
+        txn.category.toLowerCase().includes(query) ||
+        txn.date.toLowerCase().includes(query) ||
+        amountText.includes(query)
+      );
+    });
+  }, [recentTransactions, searchQuery]);
+
   const categoryExpenses = useMemo<CategoryExpense[]>(() => {
     const expenseTotals = totals.filter((item) => item.type === 'expense');
     const totalAmount = expenseTotals.reduce((sum, item) => sum + item.amount, 0);
@@ -201,6 +222,8 @@ export default function DashboardPage() {
         onPeriodChange={setActivePeriod}
         userRole={user?.role ?? 'NormalUser'}
         onAddRecord={() => setShowCreateModal(true)}
+        searchValue={searchQuery}
+        onSearchChange={setSearchQuery}
       />
       <div
         style={{
@@ -234,7 +257,10 @@ export default function DashboardPage() {
           <MonthlyTrendChart data={monthlyData} />
           <ExpensesByCategory categories={categoryExpenses} />
         </div>
-        <RecentTransactions transactions={recentTransactions} />
+        <RecentTransactions
+          transactions={visibleRecentTransactions}
+          onViewAll={() => navigate('/transactions')}
+        />
       </div>
 
       <CreateRecordModal
