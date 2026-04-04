@@ -666,14 +666,14 @@ func (s *RecordService) GetCategoryTotalsForAuthUser(ctx context.Context, authUs
 	query := `
 		SELECT
 			r.type,
-			r.category,
+			MIN(btrim(r.category)) AS category,
 			SUM(r.amount)::float8 AS total_amount
 		FROM financial_records r
 		JOIN users u ON u.id = r.user_id
 		WHERE u.auth_user_id = $1::uuid
 		  AND ($2 = '' OR r.record_date >= $2::date)
 		  AND ($3 = '' OR r.record_date <= $3::date)
-		GROUP BY r.type, r.category
+		GROUP BY r.type, lower(btrim(r.category))
 		ORDER BY total_amount DESC
 	`
 
@@ -707,12 +707,12 @@ func (s *RecordService) GetCategoryTotalsGlobal(ctx context.Context, startDate s
 	query := `
 		SELECT
 			r.type,
-			r.category,
+			MIN(btrim(r.category)) AS category,
 			SUM(r.amount)::float8 AS total_amount
 		FROM financial_records r
 		WHERE ($1 = '' OR r.record_date >= $1::date)
 		  AND ($2 = '' OR r.record_date <= $2::date)
-		GROUP BY r.type, r.category
+		GROUP BY r.type, lower(btrim(r.category))
 		ORDER BY total_amount DESC
 	`
 
