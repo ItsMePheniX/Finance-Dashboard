@@ -115,6 +115,9 @@ Run these SQL files in your Supabase SQL editor (in order):
 2. `backend/migrations/0002_rbac_seed.sql` (optional bootstrap seed)
 3. `backend/migrations/0003_add_username.sql` (required for username login)
 4. `backend/migrations/0004_replace_viewer_with_normal_user.sql` (required when upgrading from older viewer role setup)
+5. `backend/migrations/0005_seed_demo_financial_records.sql` (optional baseline fake records)
+6. `backend/migrations/0006_seed_more_fake_data_8_months.sql` (optional: more fake records for current month + last 8 months)
+7. `backend/migrations/0007_add_roles_foreign_key_to_users.sql` (adds roles table and `users.role_id` foreign key)
 
 ## API Contract
 

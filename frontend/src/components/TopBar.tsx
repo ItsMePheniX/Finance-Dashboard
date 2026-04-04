@@ -28,7 +28,6 @@ const periods: { id: TimePeriod; label: string }[] = [
   { id: 'this_month', label: 'This month' },
   { id: 'last_3_months', label: 'Last 3 months' },
   { id: 'last_6_months', label: 'Last 6 months' },
-  { id: 'custom', label: 'Custom' },
 ];
 
 export default function TopBar({
