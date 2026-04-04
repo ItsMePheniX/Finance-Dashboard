@@ -24,7 +24,7 @@ Set these backend values in Render:
 - `APP_ENV=production`
 - `FRONTEND_URL=https://<your-frontend-domain>`
 - `SUPABASE_EMAIL_REDIRECT_TO=https://<your-frontend-domain>/login`
-- `DEFAULT_APP_ROLE=normal_user` (recommended)
+- `DEFAULT_APP_ROLE=analyst` (recommended)
 - `BOOTSTRAP_ADMIN_EMAILS=<comma-separated-admin-emails>`
 
 Notes:
@@ -54,6 +54,7 @@ Before first production login, apply DB migrations in order:
 5. `backend/migrations/0005_seed_demo_financial_records.sql` (optional)
 6. `backend/migrations/0006_seed_more_fake_data_8_months.sql` (optional fake data expansion)
 7. `backend/migrations/0007_add_roles_foreign_key_to_users.sql` (adds roles table and `users.role_id` foreign key)
+8. `backend/migrations/0008_enforce_single_role_per_user.sql` (enforces single-role policy per user)
 
 ## 4. Deploy Frontend on Vercel
 

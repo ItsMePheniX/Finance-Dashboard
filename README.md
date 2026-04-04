@@ -7,28 +7,20 @@ Finance dashboard project with:
 - Data/Auth platform: Supabase (Postgres + Auth)
 - Auth flow: username/password via Supabase Auth with backend-managed refresh cookie
 
-## Phase Status
-
-Implemented in Phase 1:
+## Current Capabilities
 
 - Frontend Vite React scaffold
 - Backend Go API scaffold
 - Health endpoint
 - Username/password auth endpoints
 - Environment examples and API contract doc
-
-Implemented in Phase 2:
-
 - Supabase JWT verification via JWKS
 - Protected auth middleware (`Authorization: Bearer ...`)
 - `GET /auth/me`
 - `POST /auth/refresh`
 - `POST /auth/logout`
-
-Implemented in Phase 3 (current):
-
 - Postgres connection using `SUPABASE_DB_URL`
-- Initial SQL migrations for users, roles, records, and audit log
+- SQL migrations for users, roles, records, and audit log
 - User auto-sync on `GET /auth/me`
 - Admin-only user management routes:
   - `GET /api/users`
@@ -95,7 +87,7 @@ Login UX for evaluators:
 Evaluator access without Supabase permission:
 
 - On first `GET /auth/me`, backend syncs the user and auto-assigns `DEFAULT_APP_ROLE`.
-- Default value is `normal_user`, so new users can manage their own records, access global summaries, and view other records in limited mode.
+- Default value is `analyst`, so new users start with organization-wide read access for records and summaries.
 - To auto-grant admin for specific evaluator emails, set `BOOTSTRAP_ADMIN_EMAILS` (comma-separated).
 - Email confirmation redirect can be configured with `SUPABASE_EMAIL_REDIRECT_TO` (for example, `https://<your-frontend-domain>/login`).
 
@@ -119,6 +111,7 @@ Run these SQL files in your Supabase SQL editor (in order):
 5. `backend/migrations/0005_seed_demo_financial_records.sql` (optional baseline fake records)
 6. `backend/migrations/0006_seed_more_fake_data_8_months.sql` (optional: more fake records for current month + last 8 months)
 7. `backend/migrations/0007_add_roles_foreign_key_to_users.sql` (adds roles table and `users.role_id` foreign key)
+8. `backend/migrations/0008_enforce_single_role_per_user.sql` (enforces one role per user and defaults missing roles to analyst)
 
 ## API Contract
 

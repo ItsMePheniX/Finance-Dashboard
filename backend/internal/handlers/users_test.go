@@ -128,11 +128,13 @@ func TestAssignRoleSuccess(t *testing.T) {
 	mock.ExpectExec(regexp.QuoteMeta(`
 		WITH admin_user AS (
 			SELECT id FROM users WHERE auth_user_id = $3::uuid
+		),
+		cleared AS (
+			DELETE FROM user_roles
+			WHERE user_id = $1::uuid
 		)
 		INSERT INTO user_roles (user_id, role, granted_by)
 		VALUES ($1::uuid, $2::app_role, (SELECT id FROM admin_user))
-		ON CONFLICT (user_id, role)
-		DO NOTHING
 	`)).
 		WithArgs(targetUserID, "analyst", adminAuthUserID).
 		WillReturnResult(sqlmock.NewResult(0, 1))

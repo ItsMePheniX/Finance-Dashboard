@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
@@ -89,6 +90,10 @@ func (h *UsersHandler) RemoveRole(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := h.users.RemoveRole(r.Context(), userID, body.Role); err != nil {
+		if errors.Is(err, services.ErrSingleRolePolicy) {
+			WriteError(w, http.StatusBadRequest, "bad_request", err.Error())
+			return
+		}
 		WriteError(w, http.StatusInternalServerError, "internal_error", "failed to remove role")
 		return
 	}

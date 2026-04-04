@@ -23,10 +23,17 @@ type ApiUserRecord = {
   full_name: string;
   is_active: boolean;
   created_at: string;
+  direct_role?: string;
   roles: string[];
 };
 
 const roleApiValues = ['admin', 'analyst', 'normal_user'] as const;
+
+function roleApiValue(role: UserRole): string {
+  if (role === 'Admin') return 'admin';
+  if (role === 'Analyst') return 'analyst';
+  return 'normal_user';
+}
 
 function roleLabel(role: string): UserRole {
   if (role === 'admin') return 'Admin';
@@ -109,7 +116,13 @@ export default function UsersPage() {
     try {
       const data = await apiRequest<{ users: ApiUserRecord[] }>('/api/users');
       const mapped = data.users.map((item) => {
-        const normalizedRoles = (item.roles ?? []).map((role) => role.toLowerCase().trim());
+        const normalizedRoles = Array.from(
+          new Set(
+            [...(item.roles ?? []), item.direct_role ?? '']
+              .map((role) => role.toLowerCase().trim())
+              .filter(Boolean)
+          )
+        );
         const displayName = userName(item.full_name, item.username, item.email);
         return {
           id: item.id,
@@ -136,12 +149,12 @@ export default function UsersPage() {
     void loadUsers();
   }, []);
 
-  const applyRoleChange = async (userId: string, role: string, mode: 'assign' | 'remove') => {
-    setPending(`${mode}:${userId}:${role}`);
+  const setUserRole = async (userId: string, role: string) => {
+    setPending(`set:${userId}:${role}`);
     setError('');
     try {
       await apiRequest(`/api/users/${userId}/roles`, {
-        method: mode === 'assign' ? 'POST' : 'DELETE',
+        method: 'POST',
         body: { role },
       });
       await loadUsers();
@@ -287,7 +300,7 @@ export default function UsersPage() {
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '16px' }}>
         {filtered.map((u, idx) => {
           const badge = roleBadge[u.role];
-          const selectValue = selectedRoleByUser[u.id] ?? 'normal_user';
+          const selectValue = selectedRoleByUser[u.id] ?? roleApiValue(u.role);
           return (
             <div
               key={u.id}
@@ -341,28 +354,6 @@ export default function UsersPage() {
                 </span>
               </div>
 
-              <div style={{ marginTop: '10px', display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
-                {u.roles.length === 0 ? (
-                  <span style={{ fontSize: '11px', color: 'var(--color-text-muted)' }}>No roles assigned</span>
-                ) : (
-                  u.roles.map((role) => (
-                    <span
-                      key={`${u.id}-${role}`}
-                      style={{
-                        fontSize: '11px',
-                        borderRadius: '9999px',
-                        padding: '3px 8px',
-                        backgroundColor: roleBadge[roleLabel(role)].bg,
-                        color: roleBadge[roleLabel(role)].text,
-                        fontWeight: 600,
-                      }}
-                    >
-                      {roleLabel(role)}
-                    </span>
-                  ))
-                )}
-              </div>
-
               {isAdmin && (
                 <div style={{ marginTop: '16px', borderTop: '1px solid var(--color-border-subtle)', paddingTop: '14px' }}>
                   <div style={{ display: 'flex', gap: '8px', marginBottom: '10px' }}>
@@ -394,7 +385,7 @@ export default function UsersPage() {
 
                     <button
                       disabled={pending !== ''}
-                      onClick={() => void applyRoleChange(u.id, selectValue, 'assign')}
+                      onClick={() => void setUserRole(u.id, selectValue)}
                       style={{
                         padding: '8px 10px',
                         borderRadius: 'var(--radius-md)',
@@ -405,22 +396,7 @@ export default function UsersPage() {
                         cursor: pending !== '' ? 'not-allowed' : 'pointer',
                       }}
                     >
-                      Add role
-                    </button>
-                    <button
-                      disabled={pending !== ''}
-                      onClick={() => void applyRoleChange(u.id, selectValue, 'remove')}
-                      style={{
-                        padding: '8px 10px',
-                        borderRadius: 'var(--radius-md)',
-                        border: '1px solid rgba(248, 113, 113, 0.4)',
-                        backgroundColor: 'var(--color-accent-red-soft)',
-                        color: 'var(--color-accent-red)',
-                        fontSize: '12px',
-                        cursor: pending !== '' ? 'not-allowed' : 'pointer',
-                      }}
-                    >
-                      Remove role
+                      Set role
                     </button>
                   </div>
 

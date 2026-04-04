@@ -359,7 +359,7 @@ func (h AuthHandler) ensureAppUserAndRoles(r *http.Request, authUserID string, e
 		_ = h.users.EnsureRoleForAuthUser(r.Context(), authUserID, h.defaultRole)
 	}
 	if h.adminEmails[strings.ToLower(strings.TrimSpace(email))] {
-		_ = h.users.EnsureRoleForAuthUser(r.Context(), authUserID, "admin")
+		_ = h.users.SetRoleForAuthUser(r.Context(), authUserID, "admin")
 	}
 
 	if dbRoles, err := h.users.GetRolesForAuthUser(r.Context(), authUserID); err == nil {

@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -19,12 +20,15 @@ type UserRecord struct {
 	FullName   string    `json:"full_name"`
 	IsActive   bool      `json:"is_active"`
 	CreatedAt  time.Time `json:"created_at"`
+	DirectRole string    `json:"direct_role"`
 	Roles      []string  `json:"roles"`
 }
 
 type UserService struct {
 	db *sql.DB
 }
+
+var ErrSingleRolePolicy = errors.New("single-role policy enforced: assign a different role instead of removing")
 
 func NewUserService(db *sql.DB) *UserService {
 	return &UserService{db: db}
@@ -64,13 +68,25 @@ func (s *UserService) ListUsers(ctx context.Context) ([]UserRecord, error) {
 			COALESCE(u.full_name, ''),
 			u.is_active,
 			u.created_at,
-			COALESCE(
-				json_agg(DISTINCT ur.role::text) FILTER (WHERE ur.role IS NOT NULL),
-				'[]'::json
-			)
+			COALESCE(primary_role.role::text, ''),
+			CASE
+				WHEN primary_role.role IS NULL THEN '[]'::json
+				ELSE json_build_array(primary_role.role::text)
+			END
 		FROM users u
-		LEFT JOIN user_roles ur ON ur.user_id = u.id
-		GROUP BY u.id
+		LEFT JOIN LATERAL (
+			SELECT ur.role
+			FROM user_roles ur
+			WHERE ur.user_id = u.id
+			ORDER BY
+				CASE ur.role
+					WHEN 'admin' THEN 1
+					WHEN 'analyst' THEN 2
+					ELSE 3
+				END,
+				ur.created_at ASC
+			LIMIT 1
+		) primary_role ON true
 		ORDER BY u.created_at DESC
 	`
 
@@ -84,7 +100,7 @@ func (s *UserService) ListUsers(ctx context.Context) ([]UserRecord, error) {
 	for rows.Next() {
 		var user UserRecord
 		var rolesJSON []byte
-		if err := rows.Scan(&user.ID, &user.AuthUserID, &user.Email, &user.Username, &user.FullName, &user.IsActive, &user.CreatedAt, &rolesJSON); err != nil {
+		if err := rows.Scan(&user.ID, &user.AuthUserID, &user.Email, &user.Username, &user.FullName, &user.IsActive, &user.CreatedAt, &user.DirectRole, &rolesJSON); err != nil {
 			return nil, err
 		}
 
@@ -110,11 +126,13 @@ func (s *UserService) AssignRole(ctx context.Context, userID string, role string
 	query := `
 		WITH admin_user AS (
 			SELECT id FROM users WHERE auth_user_id = $3::uuid
+		),
+		cleared AS (
+			DELETE FROM user_roles
+			WHERE user_id = $1::uuid
 		)
 		INSERT INTO user_roles (user_id, role, granted_by)
 		VALUES ($1::uuid, $2::app_role, (SELECT id FROM admin_user))
-		ON CONFLICT (user_id, role)
-		DO NOTHING
 	`
 
 	_, err := s.db.ExecContext(ctx, query, userID, role, grantedByAuthID)
@@ -125,9 +143,11 @@ func (s *UserService) RemoveRole(ctx context.Context, userID string, role string
 	if _, err := uuid.Parse(userID); err != nil {
 		return fmt.Errorf("invalid user id")
 	}
+	if !isValidAppRole(role) {
+		return fmt.Errorf("invalid role")
+	}
 
-	_, err := s.db.ExecContext(ctx, `DELETE FROM user_roles WHERE user_id = $1::uuid AND role = $2::app_role`, userID, role)
-	return err
+	return ErrSingleRolePolicy
 }
 
 func (s *UserService) HasRole(ctx context.Context, authUserID string, role string) (bool, error) {
@@ -135,7 +155,19 @@ func (s *UserService) HasRole(ctx context.Context, authUserID string, role strin
 		SELECT EXISTS (
 			SELECT 1
 			FROM users u
-			JOIN user_roles ur ON ur.user_id = u.id
+			JOIN LATERAL (
+				SELECT ur.role
+				FROM user_roles ur
+				WHERE ur.user_id = u.id
+				ORDER BY
+					CASE ur.role
+						WHEN 'admin' THEN 1
+						WHEN 'analyst' THEN 2
+						ELSE 3
+					END,
+					ur.created_at ASC
+				LIMIT 1
+			) ur ON true
 			WHERE u.auth_user_id = $1::uuid
 			  AND u.is_active = true
 			  AND ur.role = $2::app_role
@@ -155,15 +187,27 @@ func (s *UserService) GetRolesForAuthUser(ctx context.Context, authUserID string
 	}
 
 	query := `
-		SELECT COALESCE(
-			json_agg(ur.role::text ORDER BY ur.role) FILTER (WHERE ur.role IS NOT NULL),
-			'[]'::json
-		)
+		SELECT CASE
+			WHEN primary_role.role IS NULL THEN '[]'::json
+			ELSE json_build_array(primary_role.role::text)
+		END
 		FROM users u
-		LEFT JOIN user_roles ur ON ur.user_id = u.id
+		LEFT JOIN LATERAL (
+			SELECT ur.role
+			FROM user_roles ur
+			WHERE ur.user_id = u.id
+			ORDER BY
+				CASE ur.role
+					WHEN 'admin' THEN 1
+					WHEN 'analyst' THEN 2
+					ELSE 3
+				END,
+				ur.created_at ASC
+			LIMIT 1
+		) primary_role ON true
 		WHERE u.auth_user_id = $1::uuid
 		  AND u.is_active = true
-		GROUP BY u.id
+		GROUP BY u.id, primary_role.role
 	`
 
 	var rolesJSON []byte
@@ -216,6 +260,40 @@ func (s *UserService) EnsureRoleForAuthUser(ctx context.Context, authUserID stri
 		SELECT u.id, $2::app_role
 		FROM users u
 		WHERE u.auth_user_id = $1::uuid
+		  AND NOT EXISTS (
+			  SELECT 1
+			  FROM user_roles ur
+			  WHERE ur.user_id = u.id
+		  )
+		ON CONFLICT (user_id, role)
+		DO NOTHING
+	`
+
+	_, err := s.db.ExecContext(ctx, query, authUserID, role)
+	return err
+}
+
+func (s *UserService) SetRoleForAuthUser(ctx context.Context, authUserID string, role string) error {
+	if _, err := uuid.Parse(authUserID); err != nil {
+		return fmt.Errorf("invalid auth user id")
+	}
+	if !isValidAppRole(role) {
+		return fmt.Errorf("invalid role")
+	}
+
+	query := `
+		WITH target AS (
+			SELECT u.id
+			FROM users u
+			WHERE u.auth_user_id = $1::uuid
+		),
+		cleared AS (
+			DELETE FROM user_roles
+			WHERE user_id = (SELECT id FROM target)
+		)
+		INSERT INTO user_roles (user_id, role)
+		SELECT id, $2::app_role
+		FROM target
 		ON CONFLICT (user_id, role)
 		DO NOTHING
 	`

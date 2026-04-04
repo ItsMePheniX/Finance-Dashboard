@@ -29,7 +29,7 @@ func Load() (Config, error) {
 		AppEnv:                 envOrDefault("APP_ENV", "development"),
 		Port:                   envOrDefault("PORT", "8080"),
 		FrontendURL:            envOrDefault("FRONTEND_URL", "http://localhost:3000"),
-		DefaultAppRole:         envOrDefault("DEFAULT_APP_ROLE", "normal_user"),
+		DefaultAppRole:         envOrDefault("DEFAULT_APP_ROLE", "analyst"),
 		BootstrapAdminEmails:   os.Getenv("BOOTSTRAP_ADMIN_EMAILS"),
 		SupabaseURL:            os.Getenv("SUPABASE_URL"),
 		SupabaseAnonKey:        os.Getenv("SUPABASE_ANON_KEY"),
