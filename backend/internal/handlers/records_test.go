@@ -18,7 +18,7 @@ import (
 )
 
 func TestRecordsHandlerRequiresAuth(t *testing.T) {
-	h := NewRecordsHandler(nil)
+	h := NewRecordsHandler(nil, nil)
 
 	tests := []struct {
 		name       string
@@ -93,7 +93,7 @@ func TestListRecordsSuccessIncludesPaginationMetadata(t *testing.T) {
 	defer db.Close()
 
 	recordSvc := services.NewRecordService(db)
-	h := NewRecordsHandler(recordSvc)
+	h := NewRecordsHandler(recordSvc, nil)
 	authUserID := "f1306ec8-2a73-4320-8a4e-c6be7dd82ffd"
 	now := time.Date(2026, 4, 3, 12, 0, 0, 0, time.UTC)
 
@@ -182,7 +182,7 @@ func TestListRecordsReturnsInternalErrorWhenServiceFails(t *testing.T) {
 	defer db.Close()
 
 	recordSvc := services.NewRecordService(db)
-	h := NewRecordsHandler(recordSvc)
+	h := NewRecordsHandler(recordSvc, nil)
 	authUserID := "12945227-3f8b-4398-801e-bf801cb05ec0"
 
 	mock.ExpectQuery("SELECT COUNT\\(\\*\\)").

@@ -40,6 +40,14 @@ type ListRecordsResult struct {
 	HasMore bool              `json:"has_more"`
 }
 
+type RecordReadScope string
+
+const (
+	RecordReadScopeOwn           RecordReadScope = "own"
+	RecordReadScopeGlobal        RecordReadScope = "global"
+	RecordReadScopeGlobalLimited RecordReadScope = "global_limited"
+)
+
 type CreateRecordInput struct {
 	Category   string  `json:"category"`
 	Amount     float64 `json:"amount"`
@@ -196,6 +204,133 @@ func (s *RecordService) ListForAuthUser(ctx context.Context, authUserID string, 
 	}, nil
 }
 
+func (s *RecordService) ListForAuthUserWithScope(ctx context.Context, authUserID string, filter ListRecordsFilter, scope RecordReadScope) (ListRecordsResult, error) {
+	if scope == "" {
+		scope = RecordReadScopeOwn
+	}
+
+	if scope == RecordReadScopeOwn {
+		return s.ListForAuthUser(ctx, authUserID, filter)
+	}
+
+	if _, err := uuid.Parse(authUserID); err != nil {
+		return ListRecordsResult{}, fmt.Errorf("invalid auth user id")
+	}
+
+	limit := filter.Limit
+	if limit <= 0 || limit > 100 {
+		limit = 25
+	}
+	offset := filter.Offset
+	if offset < 0 {
+		offset = 0
+	}
+
+	normalizedType := normalizeRecordType(filter.Type)
+	normalizedCategory := strings.TrimSpace(filter.Category)
+	normalizedStartDate := strings.TrimSpace(filter.StartDate)
+	normalizedEndDate := strings.TrimSpace(filter.EndDate)
+
+	countQuery := `
+		SELECT COUNT(*)
+		FROM financial_records r
+		JOIN users u ON u.id = r.user_id
+		WHERE ($1::uuid IS NULL OR u.auth_user_id = $1::uuid)
+		  AND ($2 = '' OR r.type = $2)
+		  AND ($3 = '' OR lower(r.category) = lower($3))
+		  AND ($4 = '' OR r.record_date >= $4::date)
+		  AND ($5 = '' OR r.record_date <= $5::date)
+	`
+
+	var total int
+	if err := s.db.QueryRowContext(ctx, countQuery,
+		nil,
+		normalizedType,
+		normalizedCategory,
+		normalizedStartDate,
+		normalizedEndDate,
+	).Scan(&total); err != nil {
+		return ListRecordsResult{}, err
+	}
+
+	query := `
+		SELECT
+			r.id::text,
+			r.user_id::text,
+			r.category,
+			r.amount::float8,
+			r.type,
+			r.currency,
+			COALESCE(r.note, ''),
+			r.record_date::text,
+			r.created_at,
+			r.updated_at,
+			u.auth_user_id::text
+		FROM financial_records r
+		JOIN users u ON u.id = r.user_id
+		WHERE ($1::uuid IS NULL OR u.auth_user_id = $1::uuid)
+		  AND ($2 = '' OR r.type = $2)
+		  AND ($3 = '' OR lower(r.category) = lower($3))
+		  AND ($4 = '' OR r.record_date >= $4::date)
+		  AND ($5 = '' OR r.record_date <= $5::date)
+		ORDER BY r.record_date DESC, r.created_at DESC
+		LIMIT $6 OFFSET $7
+	`
+
+	rows, err := s.db.QueryContext(ctx, query,
+		nil,
+		normalizedType,
+		normalizedCategory,
+		normalizedStartDate,
+		normalizedEndDate,
+		limit,
+		offset,
+	)
+	if err != nil {
+		return ListRecordsResult{}, err
+	}
+	defer rows.Close()
+
+	result := []FinancialRecord{}
+	for rows.Next() {
+		var rec FinancialRecord
+		var ownerAuthUserID string
+		if err := rows.Scan(
+			&rec.ID,
+			&rec.UserID,
+			&rec.Category,
+			&rec.Amount,
+			&rec.Type,
+			&rec.Currency,
+			&rec.Note,
+			&rec.RecordDate,
+			&rec.CreatedAt,
+			&rec.UpdatedAt,
+			&ownerAuthUserID,
+		); err != nil {
+			return ListRecordsResult{}, err
+		}
+
+		if scope == RecordReadScopeGlobalLimited && ownerAuthUserID != authUserID {
+			rec.Note = ""
+			rec.UserID = ""
+		}
+
+		result = append(result, rec)
+	}
+	if err := rows.Err(); err != nil {
+		return ListRecordsResult{}, err
+	}
+
+	return ListRecordsResult{
+		Records: result,
+		Total:   total,
+		Limit:   limit,
+		Offset:  offset,
+		HasMore: offset+len(result) < total,
+	}, nil
+}
+
 func (s *RecordService) CreateForAuthUser(ctx context.Context, authUserID string, input CreateRecordInput) (FinancialRecord, error) {
 	if _, err := uuid.Parse(authUserID); err != nil {
 		return FinancialRecord{}, fmt.Errorf("invalid auth user id")
@@ -254,6 +389,10 @@ func (s *RecordService) CreateForAuthUser(ctx context.Context, authUserID string
 }
 
 func (s *RecordService) UpdateForAuthUser(ctx context.Context, authUserID string, recordID string, input UpdateRecordInput) (FinancialRecord, error) {
+	return s.UpdateForAuthUserWithScope(ctx, authUserID, recordID, input, false)
+}
+
+func (s *RecordService) UpdateForAuthUserWithScope(ctx context.Context, authUserID string, recordID string, input UpdateRecordInput, canManageOthers bool) (FinancialRecord, error) {
 	if _, err := uuid.Parse(authUserID); err != nil {
 		return FinancialRecord{}, fmt.Errorf("invalid auth user id")
 	}
@@ -277,7 +416,7 @@ func (s *RecordService) UpdateForAuthUser(ctx context.Context, authUserID string
 		FROM users u
 		WHERE r.id = $2::uuid
 		  AND u.id = r.user_id
-		  AND u.auth_user_id = $1::uuid
+		  AND ($9::bool = true OR u.auth_user_id = $1::uuid)
 		RETURNING
 			r.id::text,
 			r.user_id::text,
@@ -301,6 +440,7 @@ func (s *RecordService) UpdateForAuthUser(ctx context.Context, authUserID string
 		normalizeCurrency(input.Currency),
 		strings.TrimSpace(input.Note),
 		strings.TrimSpace(input.RecordDate),
+		canManageOthers,
 	).Scan(
 		&rec.ID,
 		&rec.UserID,
@@ -324,6 +464,10 @@ func (s *RecordService) UpdateForAuthUser(ctx context.Context, authUserID string
 }
 
 func (s *RecordService) DeleteForAuthUser(ctx context.Context, authUserID string, recordID string) error {
+	return s.DeleteForAuthUserWithScope(ctx, authUserID, recordID, false)
+}
+
+func (s *RecordService) DeleteForAuthUserWithScope(ctx context.Context, authUserID string, recordID string, canManageOthers bool) error {
 	if _, err := uuid.Parse(authUserID); err != nil {
 		return fmt.Errorf("invalid auth user id")
 	}
@@ -336,10 +480,10 @@ func (s *RecordService) DeleteForAuthUser(ctx context.Context, authUserID string
 		USING users u
 		WHERE r.id = $2::uuid
 		  AND u.id = r.user_id
-		  AND u.auth_user_id = $1::uuid
+		  AND ($3::bool = true OR u.auth_user_id = $1::uuid)
 	`
 
-	res, err := s.db.ExecContext(ctx, query, authUserID, recordID)
+	res, err := s.db.ExecContext(ctx, query, authUserID, recordID, canManageOthers)
 	if err != nil {
 		return err
 	}
@@ -435,6 +579,81 @@ func (s *RecordService) GetSummaryForAuthUser(ctx context.Context, authUserID st
 	return summary, nil
 }
 
+func (s *RecordService) GetSummaryGlobal(ctx context.Context, startDate string, endDate string, recentLimit int) (DashboardSummary, error) {
+	normalizedStart, normalizedEnd, err := normalizeDateRange(startDate, endDate)
+	if err != nil {
+		return DashboardSummary{}, err
+	}
+
+	if recentLimit <= 0 || recentLimit > 50 {
+		recentLimit = 5
+	}
+
+	totalsQuery := `
+		SELECT
+			COALESCE(SUM(CASE WHEN r.type = 'income' THEN r.amount END), 0)::float8,
+			COALESCE(SUM(CASE WHEN r.type = 'expense' THEN r.amount END), 0)::float8
+		FROM financial_records r
+		WHERE ($1 = '' OR r.record_date >= $1::date)
+		  AND ($2 = '' OR r.record_date <= $2::date)
+	`
+
+	var summary DashboardSummary
+	if err := s.db.QueryRowContext(ctx, totalsQuery, normalizedStart, normalizedEnd).Scan(&summary.TotalIncome, &summary.TotalExpenses); err != nil {
+		return DashboardSummary{}, err
+	}
+	summary.NetBalance = summary.TotalIncome - summary.TotalExpenses
+
+	recentQuery := `
+		SELECT
+			r.id::text,
+			r.user_id::text,
+			r.category,
+			r.amount::float8,
+			r.type,
+			r.currency,
+			COALESCE(r.note, ''),
+			r.record_date::text,
+			r.created_at,
+			r.updated_at
+		FROM financial_records r
+		WHERE ($1 = '' OR r.record_date >= $1::date)
+		  AND ($2 = '' OR r.record_date <= $2::date)
+		ORDER BY r.record_date DESC, r.created_at DESC
+		LIMIT $3
+	`
+
+	rows, err := s.db.QueryContext(ctx, recentQuery, normalizedStart, normalizedEnd, recentLimit)
+	if err != nil {
+		return DashboardSummary{}, err
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var rec FinancialRecord
+		if err := rows.Scan(
+			&rec.ID,
+			&rec.UserID,
+			&rec.Category,
+			&rec.Amount,
+			&rec.Type,
+			&rec.Currency,
+			&rec.Note,
+			&rec.RecordDate,
+			&rec.CreatedAt,
+			&rec.UpdatedAt,
+		); err != nil {
+			return DashboardSummary{}, err
+		}
+		summary.RecentActivity = append(summary.RecentActivity, rec)
+	}
+	if err := rows.Err(); err != nil {
+		return DashboardSummary{}, err
+	}
+
+	return summary, nil
+}
+
 func (s *RecordService) GetCategoryTotalsForAuthUser(ctx context.Context, authUserID string, startDate string, endDate string) ([]CategoryTotal, error) {
 	if _, err := uuid.Parse(authUserID); err != nil {
 		return nil, fmt.Errorf("invalid auth user id")
@@ -479,6 +698,45 @@ func (s *RecordService) GetCategoryTotalsForAuthUser(ctx context.Context, authUs
 	return totals, nil
 }
 
+func (s *RecordService) GetCategoryTotalsGlobal(ctx context.Context, startDate string, endDate string) ([]CategoryTotal, error) {
+	normalizedStart, normalizedEnd, err := normalizeDateRange(startDate, endDate)
+	if err != nil {
+		return nil, err
+	}
+
+	query := `
+		SELECT
+			r.type,
+			r.category,
+			SUM(r.amount)::float8 AS total_amount
+		FROM financial_records r
+		WHERE ($1 = '' OR r.record_date >= $1::date)
+		  AND ($2 = '' OR r.record_date <= $2::date)
+		GROUP BY r.type, r.category
+		ORDER BY total_amount DESC
+	`
+
+	rows, err := s.db.QueryContext(ctx, query, normalizedStart, normalizedEnd)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	totals := []CategoryTotal{}
+	for rows.Next() {
+		var item CategoryTotal
+		if err := rows.Scan(&item.Type, &item.Category, &item.Amount); err != nil {
+			return nil, err
+		}
+		totals = append(totals, item)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	return totals, nil
+}
+
 func (s *RecordService) GetTrendsForAuthUser(ctx context.Context, authUserID string, startDate string, endDate string) ([]TrendPoint, error) {
 	if _, err := uuid.Parse(authUserID); err != nil {
 		return nil, fmt.Errorf("invalid auth user id")
@@ -503,6 +761,46 @@ func (s *RecordService) GetTrendsForAuthUser(ctx context.Context, authUserID str
 	`
 
 	rows, err := s.db.QueryContext(ctx, query, authUserID, normalizedStart, normalizedEnd)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	points := []TrendPoint{}
+	for rows.Next() {
+		var p TrendPoint
+		if err := rows.Scan(&p.Period, &p.TotalIncome, &p.TotalExpense); err != nil {
+			return nil, err
+		}
+		p.NetBalance = p.TotalIncome - p.TotalExpense
+		points = append(points, p)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	return points, nil
+}
+
+func (s *RecordService) GetTrendsGlobal(ctx context.Context, startDate string, endDate string) ([]TrendPoint, error) {
+	normalizedStart, normalizedEnd, err := normalizeDateRange(startDate, endDate)
+	if err != nil {
+		return nil, err
+	}
+
+	query := `
+		SELECT
+			to_char(date_trunc('month', r.record_date), 'YYYY-MM') AS period,
+			COALESCE(SUM(CASE WHEN r.type = 'income' THEN r.amount END), 0)::float8,
+			COALESCE(SUM(CASE WHEN r.type = 'expense' THEN r.amount END), 0)::float8
+		FROM financial_records r
+		WHERE ($1 = '' OR r.record_date >= $1::date)
+		  AND ($2 = '' OR r.record_date <= $2::date)
+		GROUP BY date_trunc('month', r.record_date)
+		ORDER BY date_trunc('month', r.record_date) ASC
+	`
+
+	rows, err := s.db.QueryContext(ctx, query, normalizedStart, normalizedEnd)
 	if err != nil {
 		return nil, err
 	}

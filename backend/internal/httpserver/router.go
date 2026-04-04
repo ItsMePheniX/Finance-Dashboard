@@ -48,7 +48,7 @@ func NewRouter(cfg config.Config) http.Handler {
 		cfg.BootstrapAdminEmails,
 	)
 	usersHandler := handlers.NewUsersHandler(userService)
-	recordsHandler := handlers.NewRecordsHandler(recordService)
+	recordsHandler := handlers.NewRecordsHandler(recordService, userService)
 	summariesHandler := handlers.NewSummariesHandler(recordService)
 
 	r.Get("/health", healthHandler.Check)

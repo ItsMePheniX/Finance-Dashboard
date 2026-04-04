@@ -24,9 +24,8 @@ func (h *SummariesHandler) GetSummary(w http.ResponseWriter, r *http.Request) {
 	}
 
 	recentLimit, _ := strconv.Atoi(r.URL.Query().Get("recent_limit"))
-	summary, err := h.records.GetSummaryForAuthUser(
+	summary, err := h.records.GetSummaryGlobal(
 		r.Context(),
-		auth.UserID,
 		r.URL.Query().Get("start_date"),
 		r.URL.Query().Get("end_date"),
 		recentLimit,
@@ -46,9 +45,8 @@ func (h *SummariesHandler) GetCategoryTotals(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	totals, err := h.records.GetCategoryTotalsForAuthUser(
+	totals, err := h.records.GetCategoryTotalsGlobal(
 		r.Context(),
-		auth.UserID,
 		r.URL.Query().Get("start_date"),
 		r.URL.Query().Get("end_date"),
 	)
@@ -67,9 +65,8 @@ func (h *SummariesHandler) GetTrends(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	trends, err := h.records.GetTrendsForAuthUser(
+	trends, err := h.records.GetTrendsGlobal(
 		r.Context(),
-		auth.UserID,
 		r.URL.Query().Get("start_date"),
 		r.URL.Query().Get("end_date"),
 	)

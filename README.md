@@ -95,7 +95,7 @@ Login UX for evaluators:
 Evaluator access without Supabase permission:
 
 - On first `GET /auth/me`, backend syncs the user and auto-assigns `DEFAULT_APP_ROLE`.
-- Default value is `normal_user`, so new users can manage their own records and access summaries.
+- Default value is `normal_user`, so new users can manage their own records, access global summaries, and view other records in limited mode.
 - To auto-grant admin for specific evaluator emails, set `BOOTSTRAP_ADMIN_EMAILS` (comma-separated).
 
 ## Quick Checks
@@ -184,24 +184,24 @@ Recommended deployment order:
 - Authentication uses username/password against Supabase Auth while app-level RBAC remains in Postgres.
 - Session restoration uses secure refresh cookie plus `POST /auth/refresh` for evaluator convenience.
 - RBAC is app-level in Postgres (`users`, `user_roles`) rather than Supabase JWT custom claims to allow dynamic role updates without token re-issuance.
-- Custom RBAC choice for this project: `normal_user` can manage own records, `analyst` is read-only for records with analytics visibility, and `admin` has full management access.
-- Record ownership is enforced by joining authenticated user mapping to `financial_records` for read/write safety.
+- Custom RBAC choice for this project: `normal_user` can manage own records and has limited cross-user visibility, `analyst` has global read access for analytics, and `admin` has full management access.
+- Record ownership is enforced for normal-user writes, while read visibility is role-scoped (global for analyst/admin, limited cross-user for normal_user).
 - Summary endpoints focus on essential dashboard metrics (income, expenses, net, categories, monthly trends) over advanced analytics.
 - Fake seed users are included for DB-level testing; real API role checks still require a real Supabase-authenticated user mapping.
 - Scope is assessment-oriented and not production-hardened (no full test suite, no rate limiting, no background jobs).
 
 ## Role Permissions
 
-- `normal_user`: can list/create/update/delete own records and read summaries
-- Analyst: can list records and read summaries (read-only)
-- Admin: full access to records, summaries, users, roles, and user status
+- `normal_user`: can list records (own + limited visibility of others), create/update/delete own records, and read global summaries
+- Analyst: can list records across the organization and read global summaries (read-only)
+- Admin: full access to records (including cross-owner updates/deletes), summaries, users, roles, and user status
 
 ## Frontend Role Views
 
 The frontend uses one shared shell with role-based tabs and actions:
 
-- Normal user: Overview + Records (read/write own records) + Analytics
-- Analyst: Overview + Records (read-only) + Analytics
+- Normal user: Overview + Records (read/write own records, limited visibility for others) + Analytics
+- Analyst: Overview + Records (global read-only) + Analytics
 - Admin: Overview + Records (read/write) + Analytics + Admin user management
 
 ## Records API Quick Test

@@ -256,8 +256,10 @@ Response `200`:
 All endpoints below require a valid bearer token.
 
 - `normal_user`, `analyst`, `admin`: can list records
+- `analyst`, `admin`: list results use global read visibility
+- `normal_user`: list results include own records plus limited visibility for others (sensitive fields such as note and owner id are redacted for non-owned records)
 - `normal_user`, `admin`: can create/update/delete records
-- List/create/update/delete operations are scoped to the authenticated user record owner.
+- `normal_user` create/update/delete is scoped to owned records; `admin` can update/delete across owners
 
 ### GET /api/records
 
@@ -363,6 +365,7 @@ Response `200`:
 All endpoints below require a valid bearer token.
 
 - `normal_user`, `analyst`, `admin`: can access summary and trend data
+- Summary/category/trend outputs are organization-level aggregates for all authenticated roles.
 
 ### GET /api/summaries
 
