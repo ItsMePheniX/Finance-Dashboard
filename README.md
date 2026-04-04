@@ -97,6 +97,7 @@ Evaluator access without Supabase permission:
 - On first `GET /auth/me`, backend syncs the user and auto-assigns `DEFAULT_APP_ROLE`.
 - Default value is `normal_user`, so new users can manage their own records, access global summaries, and view other records in limited mode.
 - To auto-grant admin for specific evaluator emails, set `BOOTSTRAP_ADMIN_EMAILS` (comma-separated).
+- Email confirmation redirect can be configured with `SUPABASE_EMAIL_REDIRECT_TO` (for example, `https://<your-frontend-domain>/login`).
 
 ## Quick Checks
 

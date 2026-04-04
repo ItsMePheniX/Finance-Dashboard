@@ -105,6 +105,9 @@ func (s *AuthService) RegisterWithPassword(ctx context.Context, email string, pa
 		"email":    email,
 		"password": password,
 	}
+	if redirectTo := strings.TrimSpace(s.cfg.SupabaseEmailRedirectTo); redirectTo != "" {
+		payload["email_redirect_to"] = redirectTo
+	}
 	if len(data) > 0 {
 		payload["data"] = data
 	}

@@ -3,21 +3,23 @@ package config
 import (
 	"errors"
 	"os"
+	"strings"
 
 	"github.com/joho/godotenv"
 )
 
 type Config struct {
-	AppEnv                 string
-	Port                   string
-	FrontendURL            string
-	DefaultAppRole         string
-	BootstrapAdminEmails   string
-	SupabaseURL            string
-	SupabaseAnonKey        string
-	SupabaseServiceRoleKey string
-	SupabaseJWTAudience    string
-	SupabaseDBURL          string
+	AppEnv                  string
+	Port                    string
+	FrontendURL             string
+	SupabaseEmailRedirectTo string
+	DefaultAppRole          string
+	BootstrapAdminEmails    string
+	SupabaseURL             string
+	SupabaseAnonKey         string
+	SupabaseServiceRoleKey  string
+	SupabaseJWTAudience     string
+	SupabaseDBURL           string
 }
 
 func Load() (Config, error) {
@@ -35,6 +37,9 @@ func Load() (Config, error) {
 		SupabaseJWTAudience:    envOrDefault("SUPABASE_JWT_AUDIENCE", "authenticated"),
 		SupabaseDBURL:          os.Getenv("SUPABASE_DB_URL"),
 	}
+
+	defaultEmailRedirect := strings.TrimRight(cfg.FrontendURL, "/") + "/login"
+	cfg.SupabaseEmailRedirectTo = envOrDefault("SUPABASE_EMAIL_REDIRECT_TO", defaultEmailRedirect)
 
 	if cfg.SupabaseURL == "" || cfg.SupabaseAnonKey == "" {
 		return Config{}, errors.New("SUPABASE_URL and SUPABASE_ANON_KEY are required")

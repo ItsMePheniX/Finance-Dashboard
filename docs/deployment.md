@@ -23,6 +23,7 @@ Set these backend values in Render:
 
 - `APP_ENV=production`
 - `FRONTEND_URL=https://<your-frontend-domain>`
+- `SUPABASE_EMAIL_REDIRECT_TO=https://<your-frontend-domain>/login`
 - `DEFAULT_APP_ROLE=normal_user` (recommended)
 - `BOOTSTRAP_ADMIN_EMAILS=<comma-separated-admin-emails>`
 
@@ -30,6 +31,7 @@ Notes:
 
 - `PORT` is injected by Render automatically.
 - `FRONTEND_URL` controls CORS allow-list.
+- `SUPABASE_EMAIL_REDIRECT_TO` controls where Supabase email confirmation links send users.
 - Keep `SUPABASE_*` values aligned with the same Supabase project used by frontend and backend.
 
 ## 3. Deploy Backend on Render
