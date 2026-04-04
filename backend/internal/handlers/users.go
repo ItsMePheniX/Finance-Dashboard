@@ -127,7 +127,7 @@ func authFromContext(r *http.Request) (middleware.AuthContext, bool) {
 
 func isValidRole(role string) bool {
 	switch role {
-	case "admin", "analyst", "viewer":
+	case "admin", "analyst", "normal_user":
 		return true
 	default:
 		return false

@@ -5,7 +5,7 @@ Finance dashboard project with:
 - Frontend: Vite + React + TypeScript
 - Backend: Go (Chi router)
 - Data/Auth platform: Supabase (Postgres + Auth)
-- OAuth provider: Google OAuth2 (handled by Go backend)
+- Auth flow: username/password via Supabase Auth with backend-managed refresh cookie
 
 ## Phase Status
 
@@ -14,8 +14,7 @@ Implemented in Phase 1:
 - Frontend Vite React scaffold
 - Backend Go API scaffold
 - Health endpoint
-- Google OAuth login and callback endpoints
-- Supabase token exchange from Google id_token
+- Username/password auth endpoints
 - Environment examples and API contract doc
 
 Implemented in Phase 2:
@@ -89,22 +88,23 @@ Frontend runs on `http://localhost:3000`.
 
 Login UX for evaluators:
 
-- Click `Sign in with Google` in the frontend.
-- After OAuth callback, backend redirects back to frontend automatically.
+- Open frontend and sign up (or log in) using username/email + password.
+- Backend sets refresh token cookie on successful auth.
 - Frontend restores access token from refresh cookie via `POST /auth/refresh`.
-- Manual token paste is optional (kept for debugging only).
 
 Evaluator access without Supabase permission:
 
 - On first `GET /auth/me`, backend syncs the user and auto-assigns `DEFAULT_APP_ROLE`.
-- Default value is `analyst`, so evaluators can test records CRUD and import immediately.
+- Default value is `normal_user`, so new users start with read-only access.
 - To auto-grant admin for specific evaluator emails, set `BOOTSTRAP_ADMIN_EMAILS` (comma-separated).
 
 ## Quick Checks
 
 ```bash
 curl -sS http://localhost:8080/health
-curl -I http://localhost:8080/auth/google/login
+curl -sS -X POST http://localhost:8080/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"identifier":"demo-user","password":"wrong-password"}' | jq '{error,message}'
 ```
 
 ## Migrations
@@ -113,6 +113,8 @@ Run these SQL files in your Supabase SQL editor (in order):
 
 1. `backend/migrations/0001_initial_rbac.sql`
 2. `backend/migrations/0002_rbac_seed.sql` (optional bootstrap seed)
+3. `backend/migrations/0003_add_username.sql` (required for username login)
+4. `backend/migrations/0004_replace_viewer_with_normal_user.sql` (required when upgrading from older viewer role setup)
 
 ## API Contract
 
@@ -132,8 +134,9 @@ cd frontend
 npm run dev
 ```
 
-1. Open frontend and click `Sign in with Google`.
-1. Confirm you return to frontend automatically and session is restored.
+1. Open frontend and sign up or sign in on `/login`.
+1. Confirm you land on dashboard and role-aware data can be loaded.
+1. Refresh the page and confirm session is restored.
 1. Click `Load records` and verify records list appears.
 1. Create one record, edit it, then delete it.
 1. Verify summary APIs quickly (replace `TOKEN` from local storage or network call if needed).
@@ -174,11 +177,11 @@ Recommended deployment order:
 2. Set frontend `VITE_API_BASE_URL` in Vercel to the Render backend URL.
 3. Deploy frontend to Vercel.
 4. Update backend `FRONTEND_URL` to the Vercel frontend URL.
-5. Update `GOOGLE_REDIRECT_URL` to `https://<render-backend-domain>/auth/google/callback`.
+5. Apply DB migrations through `0004_replace_viewer_with_normal_user.sql` before production traffic.
 
 ## Assumptions and Tradeoffs
 
-- OAuth is Google-only for this assignment to keep auth setup simple and demonstrable.
+- Authentication uses username/password against Supabase Auth while app-level RBAC remains in Postgres.
 - Session restoration uses secure refresh cookie plus `POST /auth/refresh` for evaluator convenience.
 - RBAC is app-level in Postgres (`users`, `user_roles`) rather than Supabase JWT custom claims to allow dynamic role updates without token re-issuance.
 - Record ownership is enforced by joining authenticated user mapping to `financial_records` for read/write safety.
@@ -188,17 +191,17 @@ Recommended deployment order:
 
 ## Role Permissions
 
-- Viewer: can list records and read summaries
-- Analyst: can list records, write records, and read summaries
+- `normal_user`: can list records and read summaries
+- Analyst: can list records and read summaries (read-only)
 - Admin: full access to records, summaries, users, roles, and user status
 
 ## Frontend Role Views
 
 The frontend uses one shared shell with role-based tabs and actions:
 
-- General user (viewer): Overview + Records (read-only)
-- Data analyst: Overview + Records (read/write) + Import
-- Admin: Overview + Records (read/write) + Import + Admin user management
+- Normal user: Overview + Records (read-only)
+- Analyst: Overview + Records (read-only)
+- Admin: Overview + Records (read/write) + Admin user management
 
 ## Records API Quick Test
 

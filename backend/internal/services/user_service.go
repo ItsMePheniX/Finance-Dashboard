@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -14,6 +15,7 @@ type UserRecord struct {
 	ID         string    `json:"id"`
 	AuthUserID string    `json:"auth_user_id"`
 	Email      string    `json:"email"`
+	Username   string    `json:"username"`
 	FullName   string    `json:"full_name"`
 	IsActive   bool      `json:"is_active"`
 	CreatedAt  time.Time `json:"created_at"`
@@ -28,21 +30,25 @@ func NewUserService(db *sql.DB) *UserService {
 	return &UserService{db: db}
 }
 
-func (s *UserService) EnsureUser(ctx context.Context, authUserID string, email string, fullName string) (string, error) {
+func (s *UserService) EnsureUser(ctx context.Context, authUserID string, email string, fullName string, username string) (string, error) {
 	if authUserID == "" || email == "" {
 		return "", fmt.Errorf("auth user id and email are required")
 	}
 
 	query := `
-		INSERT INTO users (auth_user_id, email, full_name)
-		VALUES ($1::uuid, $2, $3)
+		INSERT INTO users (auth_user_id, email, full_name, username)
+		VALUES ($1::uuid, $2, NULLIF($3, ''), NULLIF($4, ''))
 		ON CONFLICT (auth_user_id)
-		DO UPDATE SET email = EXCLUDED.email, full_name = EXCLUDED.full_name, updated_at = now()
+		DO UPDATE SET
+			email = EXCLUDED.email,
+			full_name = COALESCE(NULLIF(EXCLUDED.full_name, ''), users.full_name),
+			username = COALESCE(NULLIF(EXCLUDED.username, ''), users.username),
+			updated_at = now()
 		RETURNING id::text
 	`
 
 	var userID string
-	if err := s.db.QueryRowContext(ctx, query, authUserID, email, fullName).Scan(&userID); err != nil {
+	if err := s.db.QueryRowContext(ctx, query, authUserID, email, fullName, strings.ToLower(strings.TrimSpace(username))).Scan(&userID); err != nil {
 		return "", err
 	}
 	return userID, nil
@@ -54,6 +60,7 @@ func (s *UserService) ListUsers(ctx context.Context) ([]UserRecord, error) {
 			u.id::text,
 			u.auth_user_id::text,
 			u.email,
+			COALESCE(u.username, ''),
 			COALESCE(u.full_name, ''),
 			u.is_active,
 			u.created_at,
@@ -77,7 +84,7 @@ func (s *UserService) ListUsers(ctx context.Context) ([]UserRecord, error) {
 	for rows.Next() {
 		var user UserRecord
 		var rolesJSON []byte
-		if err := rows.Scan(&user.ID, &user.AuthUserID, &user.Email, &user.FullName, &user.IsActive, &user.CreatedAt, &rolesJSON); err != nil {
+		if err := rows.Scan(&user.ID, &user.AuthUserID, &user.Email, &user.Username, &user.FullName, &user.IsActive, &user.CreatedAt, &rolesJSON); err != nil {
 			return nil, err
 		}
 
@@ -217,9 +224,52 @@ func (s *UserService) EnsureRoleForAuthUser(ctx context.Context, authUserID stri
 	return err
 }
 
+func (s *UserService) ResolveLoginEmail(ctx context.Context, identifier string) (string, error) {
+	normalized := strings.ToLower(strings.TrimSpace(identifier))
+	if normalized == "" {
+		return "", fmt.Errorf("identifier is required")
+	}
+
+	if strings.Contains(normalized, "@") {
+		var email string
+		var isActive bool
+		err := s.db.QueryRowContext(
+			ctx,
+			`SELECT email, is_active FROM users WHERE lower(email) = lower($1) ORDER BY created_at DESC LIMIT 1`,
+			normalized,
+		).Scan(&email, &isActive)
+		if err != nil {
+			if err == sql.ErrNoRows {
+				// Allow direct Supabase login even if app-level user is not created yet.
+				return normalized, nil
+			}
+			return "", err
+		}
+		if !isActive {
+			return "", fmt.Errorf("user is inactive")
+		}
+		return strings.ToLower(strings.TrimSpace(email)), nil
+	}
+
+	var email string
+	err := s.db.QueryRowContext(
+		ctx,
+		`SELECT email FROM users WHERE lower(username) = lower($1) AND is_active = true ORDER BY created_at DESC LIMIT 1`,
+		normalized,
+	).Scan(&email)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return "", fmt.Errorf("user not found")
+		}
+		return "", err
+	}
+
+	return strings.ToLower(strings.TrimSpace(email)), nil
+}
+
 func isValidAppRole(role string) bool {
 	switch role {
-	case "viewer", "analyst", "admin":
+	case "normal_user", "analyst", "admin":
 		return true
 	default:
 		return false

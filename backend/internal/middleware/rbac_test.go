@@ -107,14 +107,14 @@ func TestRequireAnyRole(t *testing.T) {
 
 		authUserID := "c16584d1-5432-4d0c-bd10-f48f08fc3574"
 		mock.ExpectQuery("SELECT EXISTS").
-			WithArgs(authUserID, "viewer").
+			WithArgs(authUserID, "normal_user").
 			WillReturnRows(sqlmock.NewRows([]string{"exists"}).AddRow(false))
 		mock.ExpectQuery("SELECT EXISTS").
 			WithArgs(authUserID, "analyst").
 			WillReturnRows(sqlmock.NewRows([]string{"exists"}).AddRow(true))
 
 		nextCalled := false
-		wrapped := RequireAnyRole(userSvc, "viewer", "analyst")(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		wrapped := RequireAnyRole(userSvc, "normal_user", "analyst")(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			nextCalled = true
 			w.WriteHeader(http.StatusOK)
 		}))
@@ -140,10 +140,10 @@ func TestRequireAnyRole(t *testing.T) {
 
 		authUserID := "b8ebd853-d4a7-4f73-aebf-f49d867bd3d3"
 		mock.ExpectQuery("SELECT EXISTS").
-			WithArgs(authUserID, "viewer").
+			WithArgs(authUserID, "normal_user").
 			WillReturnError(sql.ErrConnDone)
 
-		wrapped := RequireAnyRole(userSvc, "viewer")(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		wrapped := RequireAnyRole(userSvc, "normal_user")(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			w.WriteHeader(http.StatusOK)
 		}))
 

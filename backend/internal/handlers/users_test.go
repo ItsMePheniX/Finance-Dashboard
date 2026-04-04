@@ -37,7 +37,7 @@ func TestAssignRoleValidation(t *testing.T) {
 	h := NewUsersHandler(nil)
 
 	t.Run("missing user id", func(t *testing.T) {
-		req := httptest.NewRequest(http.MethodPost, "/api/users//roles", bytes.NewBufferString(`{"role":"viewer"}`))
+		req := httptest.NewRequest(http.MethodPost, "/api/users//roles", bytes.NewBufferString(`{"role":"normal_user"}`))
 		rr := httptest.NewRecorder()
 
 		h.AssignRole(rr, req)
@@ -242,10 +242,10 @@ func TestAssignRoleReturnsInternalErrorWhenServiceFails(t *testing.T) {
 	adminAuthUserID := "f3ef0f9c-d2fc-48f2-a1eb-03b4d14daf67"
 
 	mock.ExpectExec("INSERT INTO user_roles").
-		WithArgs(targetUserID, "viewer", adminAuthUserID).
+		WithArgs(targetUserID, "normal_user", adminAuthUserID).
 		WillReturnError(sql.ErrConnDone)
 
-	req := httptest.NewRequest(http.MethodPost, "/api/users/42b5f4a5-52cf-4c98-9bde-3a7f86fe589a/roles", bytes.NewBufferString(`{"role":"viewer"}`))
+	req := httptest.NewRequest(http.MethodPost, "/api/users/42b5f4a5-52cf-4c98-9bde-3a7f86fe589a/roles", bytes.NewBufferString(`{"role":"normal_user"}`))
 	req = withURLParam(req, "id", targetUserID)
 	req = req.WithContext(middleware.WithAuthContext(req.Context(), middleware.AuthContext{UserID: adminAuthUserID}))
 	rr := httptest.NewRecorder()

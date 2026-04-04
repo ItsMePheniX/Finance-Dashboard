@@ -13,7 +13,7 @@
 ```json
 {
   "error": "invalid_input",
-  "message": "missing code or state"
+  "message": "invalid json payload"
 }
 ```
 
@@ -31,27 +31,71 @@ Response `200`:
 }
 ```
 
-## Auth (Google OAuth2 + Supabase)
+## Auth (Username/Password + Supabase)
 
-### GET /auth/google/login
+### POST /auth/register
 
-- Redirects user to Google OAuth consent.
-- Sets signed `oauth_state` cookie.
+Request body:
 
-Response: `307 Temporary Redirect`
+```json
+{
+  "username": "john.doe",
+  "email": "john@example.com",
+  "password": "strong-password-123",
+  "full_name": "John Doe"
+}
+```
 
-### GET /auth/google/callback with code and state
+Validation rules:
 
-- Validates `state` from query against signed cookie.
-- Exchanges Google `code` for `id_token`.
-- Exchanges Google `id_token` for Supabase tokens.
-- Sets refresh token cookie (`sb_refresh_token`).
-- Redirects to frontend with `?auth=success` by default.
-- Optional debug mode: add `mode=json` to return token payload as JSON.
+- `username`: 3-32 chars, lowercase letters/numbers/dot/dash/underscore
+- `email`: valid email format
+- `password`: minimum 8 chars
 
-Response `307 Temporary Redirect` (default browser flow).
+Response `201`:
 
-Response `200` with `mode=json`:
+```json
+{
+  "access_token": "...",
+  "token_type": "bearer",
+  "expires_in": 3600,
+  "requires_email_confirmation": false,
+  "user": {
+    "id": "<supabase-user-id>",
+    "app_user_id": "<app-user-id>",
+    "email": "john@example.com",
+    "username": "john.doe",
+    "role": "analyst",
+    "roles": ["analyst"]
+  }
+}
+```
+
+If email confirmation is required in your Supabase project, access token may be empty and `requires_email_confirmation` will be `true`.
+
+### POST /auth/login
+
+Request body supports any one of `identifier`, `username`, or `email`, plus `password`.
+
+Example with username:
+
+```json
+{
+  "username": "john.doe",
+  "password": "strong-password-123"
+}
+```
+
+Example with email:
+
+```json
+{
+  "email": "john@example.com",
+  "password": "strong-password-123"
+}
+```
+
+Response `200`:
 
 ```json
 {
@@ -59,8 +103,11 @@ Response `200` with `mode=json`:
   "token_type": "bearer",
   "expires_in": 3600,
   "user": {
-    "id": "...",
-    "email": "user@example.com"
+    "id": "<supabase-user-id>",
+    "app_user_id": "<app-user-id>",
+    "email": "john@example.com",
+    "role": "analyst",
+    "roles": ["analyst"]
   }
 }
 ```
@@ -77,8 +124,8 @@ Response `200`:
   "user": {
     "id": "<supabase-user-id>",
     "email": "user@example.com",
-    "role": "authenticated",
-    "roles": []
+    "role": "analyst",
+    "roles": ["analyst"]
   }
 }
 ```
@@ -149,7 +196,7 @@ Request body:
 
 ```json
 {
-  "role": "viewer"
+  "role": "normal_user"
 }
 ```
 
@@ -167,7 +214,7 @@ Request body:
 
 ```json
 {
-  "role": "viewer"
+  "role": "normal_user"
 }
 ```
 
@@ -199,15 +246,17 @@ Response `200`:
 
 ## Notes
 
-- `GET /auth/me` now also upserts the authenticated user into the `users` table.
+- `GET /auth/me` also upserts the authenticated user into the `users` table.
 - Apply migration files before using admin endpoints.
+- `backend/migrations/0003_add_username.sql` is required for username-based login.
+- `backend/migrations/0004_replace_viewer_with_normal_user.sql` is required when upgrading from legacy viewer role.
 
 ## Financial Records (RBAC)
 
 All endpoints below require a valid bearer token.
 
-- `viewer`, `analyst`, `admin`: can list records
-- `analyst`, `admin`: can create/update/delete records
+- `normal_user`, `analyst`, `admin`: can list records
+- `normal_user`, `admin`: can create/update/delete records
 
 ### GET /api/records
 
@@ -312,7 +361,7 @@ Response `200`:
 
 All endpoints below require a valid bearer token.
 
-- `viewer`, `analyst`, `admin`: can access summary and trend data
+- `normal_user`, `analyst`, `admin`: can access summary and trend data
 
 ### GET /api/summaries
 

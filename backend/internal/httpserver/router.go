@@ -44,7 +44,6 @@ func NewRouter(cfg config.Config) http.Handler {
 	authHandler := handlers.NewAuthHandler(
 		authService,
 		userService,
-		cfg.FrontendURL,
 		cfg.DefaultAppRole,
 		cfg.BootstrapAdminEmails,
 	)
@@ -53,8 +52,8 @@ func NewRouter(cfg config.Config) http.Handler {
 	summariesHandler := handlers.NewSummariesHandler(recordService)
 
 	r.Get("/health", healthHandler.Check)
-	r.Get("/auth/google/login", authHandler.GoogleLogin)
-	r.Get("/auth/google/callback", authHandler.GoogleCallback)
+	r.Post("/auth/register", authHandler.Register)
+	r.Post("/auth/login", authHandler.Login)
 	r.Post("/auth/refresh", authHandler.Refresh)
 
 	r.Group(func(protected chi.Router) {
@@ -63,11 +62,11 @@ func NewRouter(cfg config.Config) http.Handler {
 		protected.Post("/auth/logout", authHandler.Logout)
 
 		protected.Route("/api/records", func(records chi.Router) {
-			records.Use(middleware.RequireAnyRole(userService, "viewer", "analyst", "admin"))
+			records.Use(middleware.RequireAnyRole(userService, "normal_user", "analyst", "admin"))
 			records.Get("/", recordsHandler.ListRecords)
 
 			records.Group(func(writable chi.Router) {
-				writable.Use(middleware.RequireAnyRole(userService, "analyst", "admin"))
+				writable.Use(middleware.RequireAnyRole(userService, "normal_user", "admin"))
 				writable.Post("/", recordsHandler.CreateRecord)
 				writable.Patch("/{id}", recordsHandler.UpdateRecord)
 				writable.Delete("/{id}", recordsHandler.DeleteRecord)
@@ -75,7 +74,7 @@ func NewRouter(cfg config.Config) http.Handler {
 		})
 
 		protected.Route("/api/summaries", func(summaries chi.Router) {
-			summaries.Use(middleware.RequireAnyRole(userService, "viewer", "analyst", "admin"))
+			summaries.Use(middleware.RequireAnyRole(userService, "normal_user", "analyst", "admin"))
 			summaries.Get("/", summariesHandler.GetSummary)
 			summaries.Get("/by-category", summariesHandler.GetCategoryTotals)
 			summaries.Get("/trends", summariesHandler.GetTrends)

@@ -2,7 +2,7 @@
 CREATE EXTENSION IF NOT EXISTS pgcrypto;
 
 DO $$ BEGIN
-    CREATE TYPE app_role AS ENUM ('admin', 'analyst', 'viewer');
+    CREATE TYPE app_role AS ENUM ('admin', 'analyst', 'normal_user');
 EXCEPTION
     WHEN duplicate_object THEN null;
 END $$;

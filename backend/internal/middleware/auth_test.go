@@ -31,7 +31,7 @@ func TestParseBearerToken(t *testing.T) {
 func TestExtractRoles(t *testing.T) {
 	claims := map[string]any{
 		"app_metadata": map[string]any{
-			"roles": []any{"viewer", "admin", 42, ""},
+			"roles": []any{"normal_user", "admin", 42, ""},
 		},
 	}
 
@@ -39,7 +39,7 @@ func TestExtractRoles(t *testing.T) {
 	if len(roles) != 2 {
 		t.Fatalf("expected 2 roles, got %d", len(roles))
 	}
-	if roles[0] != "viewer" || roles[1] != "admin" {
+	if roles[0] != "normal_user" || roles[1] != "admin" {
 		t.Fatalf("unexpected roles: %#v", roles)
 	}
 
@@ -53,8 +53,8 @@ func TestWithAuthContextRoundTrip(t *testing.T) {
 	want := AuthContext{
 		UserID: "user-123",
 		Email:  "test@example.com",
-		Role:   "viewer",
-		Roles:  []string{"viewer"},
+		Role:   "normal_user",
+		Roles:  []string{"normal_user"},
 		Claims: map[string]any{"sub": "user-123"},
 	}
 
@@ -66,7 +66,7 @@ func TestWithAuthContextRoundTrip(t *testing.T) {
 	if got.UserID != want.UserID || got.Email != want.Email || got.Role != want.Role {
 		t.Fatalf("unexpected auth context: %#v", got)
 	}
-	if len(got.Roles) != 1 || got.Roles[0] != "viewer" {
+	if len(got.Roles) != 1 || got.Roles[0] != "normal_user" {
 		t.Fatalf("unexpected roles: %#v", got.Roles)
 	}
 }

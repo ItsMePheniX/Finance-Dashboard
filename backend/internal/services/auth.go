@@ -3,11 +3,6 @@ package services
 import (
 	"bytes"
 	"context"
-	"crypto/hmac"
-	"crypto/rand"
-	"crypto/sha256"
-	"encoding/base64"
-	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -17,18 +12,13 @@ import (
 	"time"
 
 	"finance-dashboard/backend/internal/config"
-
-	"golang.org/x/oauth2"
-	"golang.org/x/oauth2/google"
 )
 
-const stateCookieName = "oauth_state"
 const refreshCookieName = "sb_refresh_token"
 
 type AuthService struct {
-	cfg         config.Config
-	oauthConfig *oauth2.Config
-	httpClient  *http.Client
+	cfg        config.Config
+	httpClient *http.Client
 }
 
 type SupabaseTokenResponse struct {
@@ -36,55 +26,23 @@ type SupabaseTokenResponse struct {
 	RefreshToken string         `json:"refresh_token"`
 	TokenType    string         `json:"token_type"`
 	ExpiresIn    int            `json:"expires_in"`
+	ID           string         `json:"id"`
+	Email        string         `json:"email"`
 	User         map[string]any `json:"user"`
+}
+
+type supabaseErrorResponse struct {
+	Message          string `json:"message"`
+	Msg              string `json:"msg"`
+	Error            string `json:"error"`
+	ErrorDescription string `json:"error_description"`
 }
 
 func NewAuthService(cfg config.Config) *AuthService {
 	return &AuthService{
-		cfg: cfg,
-		oauthConfig: &oauth2.Config{
-			ClientID:     cfg.GoogleClientID,
-			ClientSecret: cfg.GoogleClientSecret,
-			RedirectURL:  cfg.GoogleRedirectURL,
-			Endpoint:     google.Endpoint,
-			Scopes:       []string{"openid", "email", "profile"},
-		},
+		cfg:        cfg,
 		httpClient: &http.Client{Timeout: 10 * time.Second},
 	}
-}
-
-func (s *AuthService) BuildGoogleLoginURL() (string, string, error) {
-	stateRaw, err := randomState(24)
-	if err != nil {
-		return "", "", err
-	}
-
-	signed := signState(stateRaw, s.cfg.OAuthStateSecret)
-	url := s.oauthConfig.AuthCodeURL(signed, oauth2.AccessTypeOffline, oauth2.SetAuthURLParam("prompt", "consent"))
-	return url, signed, nil
-}
-
-func (s *AuthService) SetStateCookie(w http.ResponseWriter, state string) {
-	http.SetCookie(w, &http.Cookie{
-		Name:     stateCookieName,
-		Value:    state,
-		Path:     "/",
-		HttpOnly: true,
-		Secure:   s.cfg.AppEnv != "development",
-		SameSite: http.SameSiteLaxMode,
-		MaxAge:   600,
-	})
-}
-
-func (s *AuthService) GetStateCookie(r *http.Request) (string, error) {
-	cookie, err := r.Cookie(stateCookieName)
-	if err != nil {
-		return "", err
-	}
-	if !verifySignedState(cookie.Value, s.cfg.OAuthStateSecret) {
-		return "", errors.New("invalid signed state")
-	}
-	return cookie.Value, nil
 }
 
 func (s *AuthService) SetRefreshTokenCookie(w http.ResponseWriter, refreshToken string, maxAge int) {
@@ -133,47 +91,86 @@ func (s *AuthService) GetRefreshTokenCookie(r *http.Request) (string, error) {
 	return cookie.Value, nil
 }
 
-func (s *AuthService) ExchangeGoogleCodeForSupabaseTokens(ctx context.Context, code string) (SupabaseTokenResponse, error) {
-	oauthToken, err := s.oauthConfig.Exchange(ctx, code)
-	if err != nil {
-		return SupabaseTokenResponse{}, fmt.Errorf("google code exchange failed")
+func (s *AuthService) RegisterWithPassword(ctx context.Context, email string, password string, username string, fullName string) (SupabaseTokenResponse, error) {
+	endpoint := strings.TrimRight(s.cfg.SupabaseURL, "/") + "/auth/v1/signup"
+	data := map[string]any{}
+	if username != "" {
+		data["username"] = username
+	}
+	if fullName != "" {
+		data["full_name"] = fullName
 	}
 
-	idToken, err := extractGoogleIDToken(oauthToken)
-	if err != nil {
-		return SupabaseTokenResponse{}, err
+	payload := map[string]any{
+		"email":    email,
+		"password": password,
+	}
+	if len(data) > 0 {
+		payload["data"] = data
 	}
 
-	endpoint := strings.TrimRight(s.cfg.SupabaseURL, "/") + "/auth/v1/token?grant_type=id_token"
-	payload, _ := json.Marshal(map[string]string{
-		"provider": "google",
-		"id_token": idToken,
-	})
-
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, bytes.NewReader(payload))
+	body, err := json.Marshal(payload)
 	if err != nil {
-		return SupabaseTokenResponse{}, fmt.Errorf("failed to create supabase request")
+		return SupabaseTokenResponse{}, fmt.Errorf("failed to encode register request")
+	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, bytes.NewReader(body))
+	if err != nil {
+		return SupabaseTokenResponse{}, fmt.Errorf("failed to create register request")
 	}
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("apikey", s.cfg.SupabaseAnonKey)
 
 	resp, err := s.httpClient.Do(req)
 	if err != nil {
-		return SupabaseTokenResponse{}, fmt.Errorf("supabase request failed")
+		return SupabaseTokenResponse{}, fmt.Errorf("supabase register request failed")
+	}
+	defer resp.Body.Close()
+
+	body, _ = io.ReadAll(resp.Body)
+	if resp.StatusCode >= 400 {
+		return SupabaseTokenResponse{}, fmt.Errorf("supabase register failed: %s", parseSupabaseError(body))
+	}
+
+	var tokenResp SupabaseTokenResponse
+	if err := json.Unmarshal(body, &tokenResp); err != nil {
+		return SupabaseTokenResponse{}, fmt.Errorf("invalid supabase register response")
+	}
+
+	return tokenResp, nil
+}
+
+func (s *AuthService) LoginWithPassword(ctx context.Context, email string, password string) (SupabaseTokenResponse, error) {
+	endpoint := strings.TrimRight(s.cfg.SupabaseURL, "/") + "/auth/v1/token?grant_type=password"
+	payload, _ := json.Marshal(map[string]string{
+		"email":    email,
+		"password": password,
+	})
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, bytes.NewReader(payload))
+	if err != nil {
+		return SupabaseTokenResponse{}, fmt.Errorf("failed to create login request")
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("apikey", s.cfg.SupabaseAnonKey)
+
+	resp, err := s.httpClient.Do(req)
+	if err != nil {
+		return SupabaseTokenResponse{}, fmt.Errorf("supabase login request failed")
 	}
 	defer resp.Body.Close()
 
 	body, _ := io.ReadAll(resp.Body)
 	if resp.StatusCode >= 400 {
-		return SupabaseTokenResponse{}, fmt.Errorf("supabase token exchange failed: %s", string(body))
+		return SupabaseTokenResponse{}, fmt.Errorf("supabase login failed: %s", parseSupabaseError(body))
 	}
 
 	var tokenResp SupabaseTokenResponse
 	if err := json.Unmarshal(body, &tokenResp); err != nil {
-		return SupabaseTokenResponse{}, fmt.Errorf("invalid supabase response")
+		return SupabaseTokenResponse{}, fmt.Errorf("invalid supabase login response")
 	}
 	if tokenResp.AccessToken == "" {
-		return SupabaseTokenResponse{}, fmt.Errorf("missing access token from supabase")
+		return SupabaseTokenResponse{}, fmt.Errorf("missing access token from login response")
 	}
 
 	return tokenResp, nil
@@ -234,36 +231,26 @@ func (s *AuthService) LogoutFromSupabase(ctx context.Context, accessToken string
 	_ = resp.Body.Close()
 }
 
-func extractGoogleIDToken(token *oauth2.Token) (string, error) {
-	idTokenRaw, ok := token.Extra("id_token").(string)
-	if !ok || idTokenRaw == "" {
-		return "", errors.New("missing id_token from google response")
-	}
-	return idTokenRaw, nil
-}
-
-func randomState(n int) (string, error) {
-	buf := make([]byte, n)
-	if _, err := rand.Read(buf); err != nil {
-		return "", err
-	}
-	return base64.RawURLEncoding.EncodeToString(buf), nil
-}
-
-func signState(state string, secret string) string {
-	h := hmac.New(sha256.New, []byte(secret))
-	h.Write([]byte(state))
-	sig := hex.EncodeToString(h.Sum(nil))
-	return state + "." + sig
-}
-
-func verifySignedState(signedState string, secret string) bool {
-	parts := strings.Split(signedState, ".")
-	if len(parts) != 2 {
-		return false
+func parseSupabaseError(body []byte) string {
+	if len(body) == 0 {
+		return "unknown error"
 	}
 
-	state := parts[0]
-	expected := signState(state, secret)
-	return hmac.Equal([]byte(signedState), []byte(expected))
+	var payload supabaseErrorResponse
+	if err := json.Unmarshal(body, &payload); err == nil {
+		if payload.Message != "" {
+			return payload.Message
+		}
+		if payload.Msg != "" {
+			return payload.Msg
+		}
+		if payload.ErrorDescription != "" {
+			return payload.ErrorDescription
+		}
+		if payload.Error != "" {
+			return payload.Error
+		}
+	}
+
+	return string(body)
 }

@@ -34,7 +34,7 @@ DO UPDATE SET
 	updated_at = now();
 
 -- Role mapping:
--- Rajesh -> admin, Priya -> analyst, Arjun -> viewer, Neha -> viewer (inactive)
+-- Rajesh -> admin, Priya -> analyst, Arjun -> normal_user, Neha -> normal_user (inactive)
 INSERT INTO user_roles (user_id, role, granted_by)
 SELECT admin_u.id, 'admin'::app_role, admin_u.id
 FROM users admin_u
@@ -49,10 +49,10 @@ WHERE analyst_u.auth_user_id = '22222222-2222-2222-2222-222222222222'::uuid
 ON CONFLICT (user_id, role) DO NOTHING;
 
 INSERT INTO user_roles (user_id, role, granted_by)
-SELECT viewer_u.id, 'viewer'::app_role, admin_u.id
-FROM users viewer_u
+SELECT normal_u.id, 'normal_user'::app_role, admin_u.id
+FROM users normal_u
 JOIN users admin_u ON admin_u.auth_user_id = '11111111-1111-1111-1111-111111111111'::uuid
-WHERE viewer_u.auth_user_id IN (
+WHERE normal_u.auth_user_id IN (
 	'33333333-3333-3333-3333-333333333333'::uuid,
 	'44444444-4444-4444-4444-444444444444'::uuid
 )
