@@ -55,6 +55,34 @@ const PAGE_SIZE = 8;
 
 const REQUIRED_IMPORT_COLUMNS = ['category', 'amount', 'type'];
 
+const transactionsSkeletonShimmerStyle: React.CSSProperties = {
+  background:
+    'linear-gradient(90deg, rgba(46, 51, 72, 0.45) 20%, rgba(92, 96, 120, 0.34) 40%, rgba(46, 51, 72, 0.45) 60%)',
+  backgroundSize: '220% 100%',
+  animation: 'shimmer 1.25s linear infinite',
+};
+
+function TransactionsSkeletonBlock({
+  height,
+  width = '100%',
+  borderRadius = '999px',
+}: {
+  height: number | string;
+  width?: number | string;
+  borderRadius?: string;
+}) {
+  return (
+    <div
+      style={{
+        ...transactionsSkeletonShimmerStyle,
+        height,
+        width,
+        borderRadius,
+      }}
+    />
+  );
+}
+
 function normalizeHeader(header: string): string {
   return header.trim().toLowerCase().replace(/\s+/g, '_');
 }
@@ -638,7 +666,25 @@ export default function TransactionsPage() {
       )}
 
       {loading && (
-        <div style={{ marginBottom: '12px', fontSize: '13px', color: 'var(--color-text-muted)' }}>
+        <div
+          style={{
+            marginBottom: '12px',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px',
+            fontSize: '13px',
+            color: 'var(--color-text-muted)',
+          }}
+        >
+          <span
+            style={{
+              width: 10,
+              height: 10,
+              borderRadius: '50%',
+              backgroundColor: 'var(--color-accent-blue)',
+              animation: 'pulse-glow 1.1s ease-in-out infinite',
+            }}
+          />
           Loading transactions...
         </div>
       )}
@@ -674,7 +720,35 @@ export default function TransactionsPage() {
         </div>
 
         {/* Table rows */}
-        {paginated.map((txn, idx) => (
+        {loading &&
+          Array.from({ length: PAGE_SIZE }).map((_, idx) => (
+            <div
+              key={`txn-loading-${idx + 1}`}
+              style={{
+                display: 'grid',
+                gridTemplateColumns: '50px 2fr 1fr 1fr 1fr 100px',
+                padding: '16px 20px',
+                alignItems: 'center',
+                borderBottom: '1px solid var(--color-border-subtle)',
+              }}
+            >
+              <TransactionsSkeletonBlock height={36} width={36} borderRadius="var(--radius-md)" />
+              <div style={{ display: 'grid', gap: '8px', minWidth: 0 }}>
+                <TransactionsSkeletonBlock height={12} width="62%" />
+                <TransactionsSkeletonBlock height={10} width="34%" />
+              </div>
+              <TransactionsSkeletonBlock height={12} width="70%" />
+              <TransactionsSkeletonBlock height={12} width="62%" />
+              <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                <TransactionsSkeletonBlock height={12} width="72%" />
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'center' }}>
+                <TransactionsSkeletonBlock height={22} width="78px" borderRadius="999px" />
+              </div>
+            </div>
+          ))}
+
+        {!loading && paginated.map((txn, idx) => (
           <div
             key={txn.id}
             id={`txn-${txn.id}`}
@@ -721,7 +795,7 @@ export default function TransactionsPage() {
           </div>
         ))}
 
-        {paginated.length === 0 && (
+        {!loading && paginated.length === 0 && (
           <div style={{ padding: '40px', textAlign: 'center', color: 'var(--color-text-muted)', fontSize: '14px' }}>
             No transactions found matching your filters.
           </div>

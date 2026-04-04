@@ -77,6 +77,115 @@ function percentageDelta(current: number, previous: number): number {
   return ((current - previous) / previous) * 100;
 }
 
+const analyticsSkeletonShimmerStyle: React.CSSProperties = {
+  background:
+    'linear-gradient(90deg, rgba(46, 51, 72, 0.45) 20%, rgba(92, 96, 120, 0.34) 40%, rgba(46, 51, 72, 0.45) 60%)',
+  backgroundSize: '220% 100%',
+  animation: 'shimmer 1.25s linear infinite',
+};
+
+function AnalyticsSkeletonBlock({
+  height,
+  width = '100%',
+  borderRadius = 'var(--radius-md)',
+}: {
+  height: number | string;
+  width?: number | string;
+  borderRadius?: string;
+}) {
+  return (
+    <div
+      style={{
+        ...analyticsSkeletonShimmerStyle,
+        height,
+        width,
+        borderRadius,
+      }}
+    />
+  );
+}
+
+function AnalyticsLoadingAnimation() {
+  return (
+    <>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '16px', marginBottom: '20px' }}>
+        {Array.from({ length: 4 }).map((_, idx) => (
+          <div
+            key={`analytics-metric-loading-${idx + 1}`}
+            style={{
+              backgroundColor: 'var(--color-bg-card)',
+              borderRadius: 'var(--radius-lg)',
+              border: '1px solid var(--color-border-card)',
+              padding: '24px',
+              display: 'grid',
+              gap: '10px',
+            }}
+          >
+            <AnalyticsSkeletonBlock height={12} width="52%" />
+            <AnalyticsSkeletonBlock height={26} width="66%" />
+            <AnalyticsSkeletonBlock height={10} width="38%" />
+          </div>
+        ))}
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', marginBottom: '20px' }}>
+        {Array.from({ length: 2 }).map((_, idx) => (
+          <div
+            key={`analytics-chart-loading-${idx + 1}`}
+            style={{
+              backgroundColor: 'var(--color-bg-card)',
+              borderRadius: 'var(--radius-lg)',
+              border: '1px solid var(--color-border-card)',
+              padding: '24px',
+              display: 'grid',
+              gap: '10px',
+            }}
+          >
+            <AnalyticsSkeletonBlock height={14} width="44%" />
+            <AnalyticsSkeletonBlock height={10} width="30%" />
+            <AnalyticsSkeletonBlock height={220} width="100%" borderRadius="12px" />
+          </div>
+        ))}
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 380px', gap: '20px' }}>
+        <div
+          style={{
+            backgroundColor: 'var(--color-bg-card)',
+            borderRadius: 'var(--radius-lg)',
+            border: '1px solid var(--color-border-card)',
+            padding: '24px',
+            display: 'grid',
+            gap: '10px',
+          }}
+        >
+          <AnalyticsSkeletonBlock height={14} width="36%" />
+          <AnalyticsSkeletonBlock height={10} width="28%" />
+          <AnalyticsSkeletonBlock height={200} width="100%" borderRadius="12px" />
+        </div>
+
+        <div
+          style={{
+            backgroundColor: 'var(--color-bg-card)',
+            borderRadius: 'var(--radius-lg)',
+            border: '1px solid var(--color-border-card)',
+            padding: '24px',
+            display: 'grid',
+            gap: '10px',
+          }}
+        >
+          <AnalyticsSkeletonBlock height={14} width="54%" />
+          <AnalyticsSkeletonBlock height={10} width="26%" />
+          <AnalyticsSkeletonBlock height={180} width="100%" borderRadius="12px" />
+          {Array.from({ length: 4 }).map((_, idx) => (
+            <AnalyticsSkeletonBlock key={`analytics-legend-loading-${idx + 1}`} height={10} width="86%" />
+          ))}
+        </div>
+      </div>
+    </>
+  );
+}
+
 function ChartTooltip({ active, payload, label }: any) {
   if (!active || !payload) return null;
   return (
@@ -311,178 +420,201 @@ export default function AnalyticsPage() {
         </div>
       )}
 
-      {loading && (
-        <div style={{ marginBottom: '16px', fontSize: '13px', color: 'var(--color-text-muted)' }}>
-          Loading analytics...
-        </div>
-      )}
-
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '16px', marginBottom: '20px' }}>
-        {kpis.map((kpi, i) => {
-          const Icon = kpi.icon;
-          return (
-            <div
-              key={kpi.label}
-              className={`animate-fade-in stagger-${i + 1}`}
+      {loading ? (
+        <>
+          <div
+            style={{
+              marginBottom: '16px',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              fontSize: '13px',
+              color: 'var(--color-text-muted)',
+            }}
+          >
+            <span
               style={{
-                ...cardStyle,
-                display: 'flex',
-                flexDirection: 'column',
-                gap: '10px',
-                transition: 'all 0.25s ease',
-                cursor: 'default',
+                width: 10,
+                height: 10,
+                borderRadius: '50%',
+                backgroundColor: 'var(--color-accent-blue)',
+                animation: 'pulse-glow 1.1s ease-in-out infinite',
               }}
-            >
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <span style={{ fontSize: '12px', fontWeight: 500, color: 'var(--color-text-muted)' }}>{kpi.label}</span>
+            />
+            Loading analytics...
+          </div>
+          <AnalyticsLoadingAnimation />
+        </>
+      ) : (
+        <>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '16px', marginBottom: '20px' }}>
+            {kpis.map((kpi, i) => {
+              const Icon = kpi.icon;
+              return (
                 <div
+                  key={kpi.label}
+                  className={`animate-fade-in stagger-${i + 1}`}
                   style={{
-                    width: 30,
-                    height: 30,
-                    borderRadius: 'var(--radius-sm)',
-                    backgroundColor: 'var(--color-accent-blue-glow)',
+                    ...cardStyle,
                     display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
+                    flexDirection: 'column',
+                    gap: '10px',
+                    transition: 'all 0.25s ease',
+                    cursor: 'default',
                   }}
                 >
-                  <Icon size={14} color="var(--color-accent-blue)" />
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <span style={{ fontSize: '12px', fontWeight: 500, color: 'var(--color-text-muted)' }}>{kpi.label}</span>
+                    <div
+                      style={{
+                        width: 30,
+                        height: 30,
+                        borderRadius: 'var(--radius-sm)',
+                        backgroundColor: 'var(--color-accent-blue-glow)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                      }}
+                    >
+                      <Icon size={14} color="var(--color-accent-blue)" />
+                    </div>
+                  </div>
+                  <span style={{ fontSize: '24px', fontWeight: 800, letterSpacing: '-0.03em' }}>{kpi.value}</span>
+                  <span
+                    style={{
+                      fontSize: '12px',
+                      fontWeight: 600,
+                      color: kpi.up ? 'var(--color-accent-green)' : 'var(--color-accent-red)',
+                    }}
+                  >
+                    {kpi.delta}
+                  </span>
                 </div>
-              </div>
-              <span style={{ fontSize: '24px', fontWeight: 800, letterSpacing: '-0.03em' }}>{kpi.value}</span>
-              <span
-                style={{
-                  fontSize: '12px',
-                  fontWeight: 600,
-                  color: kpi.up ? 'var(--color-accent-green)' : 'var(--color-accent-red)',
-                }}
-              >
-                {kpi.delta}
-              </span>
+              );
+            })}
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', marginBottom: '20px' }}>
+            <div className="animate-fade-in stagger-3" style={cardStyle}>
+              <h2 style={{ fontSize: '15px', fontWeight: 700, marginBottom: '4px' }}>Revenue vs Expenses</h2>
+              <p style={{ fontSize: '12px', color: 'var(--color-text-muted)', marginBottom: '20px' }}>Monthly totals</p>
+              <ResponsiveContainer width="100%" height={240}>
+                <BarChart data={monthlyRevenue} barGap={3} barCategoryGap="25%">
+                  <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border-subtle)" vertical={false} />
+                  <XAxis dataKey="month" axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: 'var(--color-text-muted)' }} />
+                  <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: 'var(--color-text-muted)' }} tickFormatter={(v) => `${v / 1000}k`} width={36} />
+                  <Tooltip content={<ChartTooltip />} cursor={{ fill: 'rgba(255,255,255,0.03)' }} />
+                  {view !== 'expenses' && (
+                    <Bar dataKey="income" name="Income" fill="var(--color-accent-blue)" radius={[4, 4, 0, 0]} maxBarSize={24} />
+                  )}
+                  {view !== 'income' && (
+                    <Bar dataKey="expenses" name="Expenses" fill="var(--color-accent-red)" radius={[4, 4, 0, 0]} maxBarSize={24} />
+                  )}
+                </BarChart>
+              </ResponsiveContainer>
             </div>
-          );
-        })}
-      </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', marginBottom: '20px' }}>
-        <div className="animate-fade-in stagger-3" style={cardStyle}>
-          <h2 style={{ fontSize: '15px', fontWeight: 700, marginBottom: '4px' }}>Revenue vs Expenses</h2>
-          <p style={{ fontSize: '12px', color: 'var(--color-text-muted)', marginBottom: '20px' }}>Monthly totals</p>
-          <ResponsiveContainer width="100%" height={240}>
-            <BarChart data={monthlyRevenue} barGap={3} barCategoryGap="25%">
-              <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border-subtle)" vertical={false} />
-              <XAxis dataKey="month" axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: 'var(--color-text-muted)' }} />
-              <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: 'var(--color-text-muted)' }} tickFormatter={(v) => `${v / 1000}k`} width={36} />
-              <Tooltip content={<ChartTooltip />} cursor={{ fill: 'rgba(255,255,255,0.03)' }} />
-              {view !== 'expenses' && (
-                <Bar dataKey="income" name="Income" fill="var(--color-accent-blue)" radius={[4, 4, 0, 0]} maxBarSize={24} />
-              )}
-              {view !== 'income' && (
-                <Bar dataKey="expenses" name="Expenses" fill="var(--color-accent-red)" radius={[4, 4, 0, 0]} maxBarSize={24} />
-              )}
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
-
-        <div className="animate-fade-in stagger-4" style={cardStyle}>
-          <h2 style={{ fontSize: '15px', fontWeight: 700, marginBottom: '4px' }}>Cash Flow</h2>
-          <p style={{ fontSize: '12px', color: 'var(--color-text-muted)', marginBottom: '20px' }}>Cumulative net balance</p>
-          <ResponsiveContainer width="100%" height={240}>
-            <AreaChart data={cashFlow}>
-              <defs>
-                <linearGradient id="cashGrad" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="var(--color-accent-teal)" stopOpacity={0.3} />
-                  <stop offset="100%" stopColor="var(--color-accent-teal)" stopOpacity={0} />
-                </linearGradient>
-              </defs>
-              <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border-subtle)" vertical={false} />
-              <XAxis dataKey="month" axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: 'var(--color-text-muted)' }} />
-              <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: 'var(--color-text-muted)' }} tickFormatter={(v) => `${v / 1000}k`} width={36} />
-              <Tooltip content={<ChartTooltip />} />
-              <Area type="monotone" dataKey="balance" name="Balance" stroke="var(--color-accent-teal)" strokeWidth={2} fill="url(#cashGrad)" />
-            </AreaChart>
-          </ResponsiveContainer>
-        </div>
-      </div>
-
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 380px', gap: '20px' }}>
-        <div className="animate-fade-in stagger-5" style={cardStyle}>
-          <h2 style={{ fontSize: '15px', fontWeight: 700, marginBottom: '4px' }}>
-            {view === 'income' ? 'Weekly Income' : 'Weekly Spending'}
-          </h2>
-          <p style={{ fontSize: '12px', color: 'var(--color-text-muted)', marginBottom: '20px' }}>Current month breakdown</p>
-          <ResponsiveContainer width="100%" height={220}>
-            <LineChart data={weeklySeries}>
-              <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border-subtle)" vertical={false} />
-              <XAxis dataKey="week" axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: 'var(--color-text-muted)' }} />
-              <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: 'var(--color-text-muted)' }} tickFormatter={(v) => `${v / 1000}k`} width={36} />
-              <Tooltip content={<ChartTooltip />} />
-              <Line
-                type="monotone"
-                dataKey="amount"
-                name={lineName}
-                stroke={lineColor}
-                strokeWidth={2.5}
-                dot={{ r: 4, fill: lineColor, strokeWidth: 0 }}
-                activeDot={{ r: 6, stroke: lineColor, strokeWidth: 2, fill: 'var(--color-bg-card)' }}
-              />
-            </LineChart>
-          </ResponsiveContainer>
-        </div>
-
-        <div className="animate-fade-in stagger-5" style={cardStyle}>
-          <h2 style={{ fontSize: '15px', fontWeight: 700, marginBottom: '4px' }}>
-            {view === 'income' ? 'Income Distribution' : 'Expense Distribution'}
-          </h2>
-          <p style={{ fontSize: '12px', color: 'var(--color-text-muted)', marginBottom: '16px' }}>By category</p>
-          <div style={{ display: 'flex', justifyContent: 'center' }}>
-            <ResponsiveContainer width={200} height={200}>
-              <PieChart>
-                <Pie
-                  data={categoryData}
-                  cx="50%"
-                  cy="50%"
-                  innerRadius={55}
-                  outerRadius={85}
-                  paddingAngle={3}
-                  dataKey="value"
-                  strokeWidth={0}
-                >
-                  {categoryData.map((entry) => (
-                    <Cell key={entry.name} fill={entry.color} />
-                  ))}
-                </Pie>
-                <Tooltip
-                  formatter={(value) => formatCurrency(Number(value))}
-                  contentStyle={{
-                    backgroundColor: 'var(--color-bg-card)',
-                    border: '1px solid var(--color-border-card)',
-                    borderRadius: 'var(--radius-md)',
-                    fontSize: '12px',
-                    boxShadow: '0 8px 24px rgba(0,0,0,0.3)',
-                  }}
-                />
-              </PieChart>
-            </ResponsiveContainer>
+            <div className="animate-fade-in stagger-4" style={cardStyle}>
+              <h2 style={{ fontSize: '15px', fontWeight: 700, marginBottom: '4px' }}>Cash Flow</h2>
+              <p style={{ fontSize: '12px', color: 'var(--color-text-muted)', marginBottom: '20px' }}>Cumulative net balance</p>
+              <ResponsiveContainer width="100%" height={240}>
+                <AreaChart data={cashFlow}>
+                  <defs>
+                    <linearGradient id="cashGrad" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="var(--color-accent-teal)" stopOpacity={0.3} />
+                      <stop offset="100%" stopColor="var(--color-accent-teal)" stopOpacity={0} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border-subtle)" vertical={false} />
+                  <XAxis dataKey="month" axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: 'var(--color-text-muted)' }} />
+                  <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: 'var(--color-text-muted)' }} tickFormatter={(v) => `${v / 1000}k`} width={36} />
+                  <Tooltip content={<ChartTooltip />} />
+                  <Area type="monotone" dataKey="balance" name="Balance" stroke="var(--color-accent-teal)" strokeWidth={2} fill="url(#cashGrad)" />
+                </AreaChart>
+              </ResponsiveContainer>
+            </div>
           </div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '8px' }}>
-            {categoryData.map((item) => (
-              <div key={item.name} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <div style={{ width: 10, height: 10, borderRadius: '2px', backgroundColor: item.color }} />
-                  <span style={{ fontSize: '12px', color: 'var(--color-text-secondary)' }}>{item.name}</span>
-                </div>
-                <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--color-text-primary)' }}>
-                  {formatCurrency(item.value)}
-                </span>
+
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 380px', gap: '20px' }}>
+            <div className="animate-fade-in stagger-5" style={cardStyle}>
+              <h2 style={{ fontSize: '15px', fontWeight: 700, marginBottom: '4px' }}>
+                {view === 'income' ? 'Weekly Income' : 'Weekly Spending'}
+              </h2>
+              <p style={{ fontSize: '12px', color: 'var(--color-text-muted)', marginBottom: '20px' }}>Current month breakdown</p>
+              <ResponsiveContainer width="100%" height={220}>
+                <LineChart data={weeklySeries}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border-subtle)" vertical={false} />
+                  <XAxis dataKey="week" axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: 'var(--color-text-muted)' }} />
+                  <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: 'var(--color-text-muted)' }} tickFormatter={(v) => `${v / 1000}k`} width={36} />
+                  <Tooltip content={<ChartTooltip />} />
+                  <Line
+                    type="monotone"
+                    dataKey="amount"
+                    name={lineName}
+                    stroke={lineColor}
+                    strokeWidth={2.5}
+                    dot={{ r: 4, fill: lineColor, strokeWidth: 0 }}
+                    activeDot={{ r: 6, stroke: lineColor, strokeWidth: 2, fill: 'var(--color-bg-card)' }}
+                  />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+
+            <div className="animate-fade-in stagger-5" style={cardStyle}>
+              <h2 style={{ fontSize: '15px', fontWeight: 700, marginBottom: '4px' }}>
+                {view === 'income' ? 'Income Distribution' : 'Expense Distribution'}
+              </h2>
+              <p style={{ fontSize: '12px', color: 'var(--color-text-muted)', marginBottom: '16px' }}>By category</p>
+              <div style={{ display: 'flex', justifyContent: 'center' }}>
+                <ResponsiveContainer width={200} height={200}>
+                  <PieChart>
+                    <Pie
+                      data={categoryData}
+                      cx="50%"
+                      cy="50%"
+                      innerRadius={55}
+                      outerRadius={85}
+                      paddingAngle={3}
+                      dataKey="value"
+                      strokeWidth={0}
+                    >
+                      {categoryData.map((entry) => (
+                        <Cell key={entry.name} fill={entry.color} />
+                      ))}
+                    </Pie>
+                    <Tooltip
+                      formatter={(value) => formatCurrency(Number(value))}
+                      contentStyle={{
+                        backgroundColor: 'var(--color-bg-card)',
+                        border: '1px solid var(--color-border-card)',
+                        borderRadius: 'var(--radius-md)',
+                        fontSize: '12px',
+                        boxShadow: '0 8px 24px rgba(0,0,0,0.3)',
+                      }}
+                    />
+                  </PieChart>
+                </ResponsiveContainer>
               </div>
-            ))}
-            {categoryData.length === 0 && (
-              <p style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}>No category data available.</p>
-            )}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '8px' }}>
+                {categoryData.map((item) => (
+                  <div key={item.name} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <div style={{ width: 10, height: 10, borderRadius: '2px', backgroundColor: item.color }} />
+                      <span style={{ fontSize: '12px', color: 'var(--color-text-secondary)' }}>{item.name}</span>
+                    </div>
+                    <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--color-text-primary)' }}>
+                      {formatCurrency(item.value)}
+                    </span>
+                  </div>
+                ))}
+                {categoryData.length === 0 && (
+                  <p style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}>No category data available.</p>
+                )}
+              </div>
+            </div>
           </div>
-        </div>
-      </div>
+        </>
+      )}
     </div>
   );
 }
