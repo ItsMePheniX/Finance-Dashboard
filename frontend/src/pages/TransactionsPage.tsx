@@ -15,8 +15,9 @@ import CreateRecordModal from '../components/CreateRecordModal';
 
 interface TransactionRow {
   id: string;
-  description: string;
-  vendor: string;
+  name: string;
+  note: string;
+  currency: string;
   category: string;
   type: 'income' | 'expense';
   amount: number;
@@ -258,8 +259,9 @@ export default function TransactionsPage() {
   const allTransactions = useMemo<TransactionRow[]>(() => {
     return records.map((record) => ({
       id: record.id,
-      description: record.note?.trim() || record.category,
-      vendor: record.currency,
+      name: record.category,
+      note: record.note?.trim() || '',
+      currency: record.currency,
       category: record.category,
       type: record.type,
       amount: record.amount,
@@ -280,8 +282,9 @@ export default function TransactionsPage() {
       const q = search.toLowerCase();
       items = items.filter(
         (t) =>
-          t.description.toLowerCase().includes(q) ||
-          t.vendor.toLowerCase().includes(q) ||
+          t.name.toLowerCase().includes(q) ||
+          t.note.toLowerCase().includes(q) ||
+          t.currency.toLowerCase().includes(q) ||
           t.id.toLowerCase().includes(q)
       );
     }
@@ -364,8 +367,8 @@ export default function TransactionsPage() {
         txn.category,
         txn.amount,
         txn.type,
-        txn.vendor,
-        txn.description,
+        txn.currency,
+        txn.note,
         txn.date,
       ]),
     ];
@@ -712,7 +715,7 @@ export default function TransactionsPage() {
           }}
         >
           <span></span>
-          <span>Description</span>
+          <span>Name</span>
           <span>Category</span>
           <span>Date</span>
           <span style={{ textAlign: 'right' }}>Amount</span>
@@ -776,7 +779,7 @@ export default function TransactionsPage() {
             </div>
             <div style={{ minWidth: 0 }}>
               <div style={{ fontSize: '14px', fontWeight: 600, color: 'var(--color-text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                {txn.description} — {txn.vendor}
+                {txn.name} — {txn.currency}
               </div>
             </div>
             <span style={{ fontSize: '13px', color: 'var(--color-text-secondary)' }}>{txn.category}</span>
