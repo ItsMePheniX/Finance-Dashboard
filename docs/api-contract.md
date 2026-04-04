@@ -257,6 +257,7 @@ All endpoints below require a valid bearer token.
 
 - `normal_user`, `analyst`, `admin`: can list records
 - `normal_user`, `admin`: can create/update/delete records
+- List/create/update/delete operations are scoped to the authenticated user record owner.
 
 ### GET /api/records
 

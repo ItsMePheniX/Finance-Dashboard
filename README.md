@@ -95,7 +95,7 @@ Login UX for evaluators:
 Evaluator access without Supabase permission:
 
 - On first `GET /auth/me`, backend syncs the user and auto-assigns `DEFAULT_APP_ROLE`.
-- Default value is `normal_user`, so new users start with read-only access.
+- Default value is `normal_user`, so new users can manage their own records and access summaries.
 - To auto-grant admin for specific evaluator emails, set `BOOTSTRAP_ADMIN_EMAILS` (comma-separated).
 
 ## Quick Checks
@@ -184,6 +184,7 @@ Recommended deployment order:
 - Authentication uses username/password against Supabase Auth while app-level RBAC remains in Postgres.
 - Session restoration uses secure refresh cookie plus `POST /auth/refresh` for evaluator convenience.
 - RBAC is app-level in Postgres (`users`, `user_roles`) rather than Supabase JWT custom claims to allow dynamic role updates without token re-issuance.
+- Custom RBAC choice for this project: `normal_user` can manage own records, `analyst` is read-only for records with analytics visibility, and `admin` has full management access.
 - Record ownership is enforced by joining authenticated user mapping to `financial_records` for read/write safety.
 - Summary endpoints focus on essential dashboard metrics (income, expenses, net, categories, monthly trends) over advanced analytics.
 - Fake seed users are included for DB-level testing; real API role checks still require a real Supabase-authenticated user mapping.
@@ -191,7 +192,7 @@ Recommended deployment order:
 
 ## Role Permissions
 
-- `normal_user`: can list records and read summaries
+- `normal_user`: can list/create/update/delete own records and read summaries
 - Analyst: can list records and read summaries (read-only)
 - Admin: full access to records, summaries, users, roles, and user status
 
@@ -199,9 +200,9 @@ Recommended deployment order:
 
 The frontend uses one shared shell with role-based tabs and actions:
 
-- Normal user: Overview + Records (read-only)
-- Analyst: Overview + Records (read-only)
-- Admin: Overview + Records (read/write) + Admin user management
+- Normal user: Overview + Records (read/write own records) + Analytics
+- Analyst: Overview + Records (read-only) + Analytics
+- Admin: Overview + Records (read/write) + Analytics + Admin user management
 
 ## Records API Quick Test
 

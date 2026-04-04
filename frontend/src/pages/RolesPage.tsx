@@ -48,17 +48,17 @@ const baseRoles: Omit<RoleDef, 'userCount'>[] = [
   },
   {
     role: 'Analyst',
-    description: 'Read-only analytics and transaction visibility',
+    description: 'Read-only record access with analytics visibility',
     color: 'var(--color-accent-purple)',
     colorBg: 'rgba(167,139,250,0.12)',
     permissions: ['view_dashboard', 'view_transactions', 'view_analytics', 'export_data'],
   },
   {
     role: 'NormalUser',
-    description: 'Read-only access to dashboard and transactions',
+    description: 'Can create, update, and delete own transactions',
     color: 'var(--color-accent-amber)',
     colorBg: 'rgba(251,191,36,0.12)',
-    permissions: ['view_dashboard', 'view_transactions', 'view_analytics'],
+    permissions: ['view_dashboard', 'view_transactions', 'add_transactions', 'edit_transactions', 'delete_transactions', 'view_analytics'],
   },
 ];
 
