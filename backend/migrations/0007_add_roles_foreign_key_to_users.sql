@@ -9,12 +9,22 @@ CREATE TABLE IF NOT EXISTS roles (
     updated_at timestamptz NOT NULL DEFAULT now()
 );
 
-INSERT INTO roles (name)
-VALUES
-    ('admin'::app_role),
-    ('analyst'::app_role),
-    ('normal_user'::app_role)
-ON CONFLICT (name) DO NOTHING;
+DO $$
+DECLARE
+    role_name app_role;
+BEGIN
+    FOREACH role_name IN ARRAY ARRAY['admin'::app_role, 'analyst'::app_role, 'normal_user'::app_role]
+    LOOP
+        BEGIN
+            INSERT INTO roles (name)
+            VALUES (role_name);
+        EXCEPTION
+            WHEN unique_violation THEN
+                NULL;
+        END;
+    END LOOP;
+END
+$$;
 
 ALTER TABLE users
     ADD COLUMN IF NOT EXISTS role_id uuid;
