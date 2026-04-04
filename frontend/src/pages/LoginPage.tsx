@@ -7,20 +7,23 @@ type AuthMode = 'login' | 'signup';
 
 const tempRoleAccounts = [
   {
-    role: 'Admin',
-    identifier: 'admin@financeos.app',
-    password: '12345678',
-    accent: 'var(--color-accent-blue)',
-  },
-  {
     role: 'Analyst',
-    identifier: 'analyst@financeos.app',
+    identifier: 'analyst_aditya',
+    email: 'aadityaa5000@gmail.com',
     password: '12345678',
     accent: 'var(--color-accent-purple)',
   },
   {
+    role: 'Admin',
+    identifier: 'admin_aditya',
+    email: 'paisabanao.exe@gmail.com',
+    password: '12345678',
+    accent: 'var(--color-accent-blue)',
+  },
+  {
     role: 'NormalUser',
-    identifier: 'user@financeos.app',
+    identifier: 'normal_user_aditya',
+    email: 'vadityateja458@gmail.com',
     password: '12345678',
     accent: 'var(--color-accent-amber)',
   },
@@ -460,6 +463,9 @@ export default function LoginPage() {
                       </div>
                       <div style={{ marginTop: '4px', fontSize: '12px', color: 'var(--color-text-secondary)' }}>
                         {account.identifier}
+                      </div>
+                      <div style={{ marginTop: '2px', fontSize: '11px', color: 'var(--color-text-muted)' }}>
+                        {account.email}
                       </div>
                     </button>
                   ))}
