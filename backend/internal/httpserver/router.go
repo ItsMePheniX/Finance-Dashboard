@@ -49,7 +49,7 @@ func NewRouter(cfg config.Config) http.Handler {
 	)
 	usersHandler := handlers.NewUsersHandler(userService)
 	recordsHandler := handlers.NewRecordsHandler(recordService, userService)
-	summariesHandler := handlers.NewSummariesHandler(recordService)
+	summariesHandler := handlers.NewSummariesHandler(recordService, userService)
 
 	r.Get("/health", healthHandler.Check)
 	r.Post("/auth/register", authHandler.Register)

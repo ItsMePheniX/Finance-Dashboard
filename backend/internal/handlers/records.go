@@ -199,7 +199,7 @@ func readScopeForRoles(roles []string) services.RecordReadScope {
 		return services.RecordReadScopeGlobal
 	}
 	if hasRole(roles, "normal_user") {
-		return services.RecordReadScopeGlobalLimited
+		return services.RecordReadScopeOwn
 	}
 	return services.RecordReadScopeOwn
 }
