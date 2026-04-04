@@ -312,7 +312,7 @@ export default function DashboardPage() {
   const recentTransactions = useMemo<Transaction[]>(() => {
     return (summary?.recent_activity ?? []).map((rec) => ({
       id: rec.id,
-      description: rec.note?.trim() || rec.category,
+      description: rec.category,
       vendor: rec.currency,
       category: rec.category,
       type: rec.type,
