@@ -82,7 +82,7 @@ export default function RecentTransactions({ transactions, onViewAll }: RecentTr
               fontSize: '13px',
             }}
           >
-            No recent transactions match your search.
+            No recent transactions available.
           </div>
         )}
 

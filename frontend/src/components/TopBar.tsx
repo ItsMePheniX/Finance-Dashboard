@@ -1,4 +1,4 @@
-import { Plus, Bell, Search } from 'lucide-react';
+import { Plus, Bell, RefreshCw } from 'lucide-react';
 import type { TimePeriod, UserRole } from '../types';
 
 interface TopBarProps {
@@ -6,8 +6,8 @@ interface TopBarProps {
   onPeriodChange: (period: TimePeriod) => void;
   userRole: UserRole;
   onAddRecord?: () => void;
-  searchValue: string;
-  onSearchChange: (value: string) => void;
+  isLoadingData: boolean;
+  onRefreshData: () => void;
 }
 
 const periods: { id: TimePeriod; label: string }[] = [
@@ -22,8 +22,8 @@ export default function TopBar({
   onPeriodChange,
   userRole,
   onAddRecord,
-  searchValue,
-  onSearchChange,
+  isLoadingData,
+  onRefreshData,
 }: TopBarProps) {
   const canAddRecord = userRole === 'Admin' || userRole === 'NormalUser';
 
@@ -107,36 +107,39 @@ export default function TopBar({
 
       {/* Right side */}
       <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-        {/* Search */}
-        <div
+        <button
+          id="refresh-dashboard-btn"
+          onClick={onRefreshData}
+          disabled={isLoadingData}
           style={{
             display: 'flex',
             alignItems: 'center',
-            gap: '8px',
-            backgroundColor: 'var(--color-bg-card)',
-            border: '1px solid var(--color-border-subtle)',
+            gap: '6px',
+            padding: '9px 14px',
             borderRadius: 'var(--radius-md)',
-            padding: '8px 14px',
+            border: '1px solid var(--color-border-subtle)',
+            backgroundColor: 'var(--color-bg-card)',
+            color: 'var(--color-text-secondary)',
+            cursor: isLoadingData ? 'not-allowed' : 'pointer',
+            fontSize: '13px',
+            fontWeight: 500,
+            fontFamily: 'inherit',
+            transition: 'all 0.2s ease',
+            opacity: isLoadingData ? 0.75 : 1,
+          }}
+          onMouseEnter={(e) => {
+            if (isLoadingData) return;
+            e.currentTarget.style.borderColor = 'var(--color-accent-blue)';
+            e.currentTarget.style.color = 'var(--color-text-primary)';
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.borderColor = 'var(--color-border-subtle)';
+            e.currentTarget.style.color = 'var(--color-text-secondary)';
           }}
         >
-          <Search size={16} color="var(--color-text-muted)" />
-          <input
-            id="search-input"
-            type="text"
-            value={searchValue}
-            onChange={(event) => onSearchChange(event.target.value)}
-            placeholder="Search recent transactions..."
-            style={{
-              background: 'none',
-              border: 'none',
-              outline: 'none',
-              color: 'var(--color-text-primary)',
-              fontSize: '13px',
-              fontFamily: 'inherit',
-              width: '120px',
-            }}
-          />
-        </div>
+          <RefreshCw size={15} className={isLoadingData ? 'animate-spin' : undefined} />
+          {isLoadingData ? 'Loading data...' : 'Refresh data'}
+        </button>
 
         {/* Notifications */}
         <button

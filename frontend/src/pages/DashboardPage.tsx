@@ -88,7 +88,6 @@ export default function DashboardPage() {
   const { user } = useAuth();
   const navigate = useNavigate();
   const [activePeriod, setActivePeriod] = useState<TimePeriod>('this_month');
-  const [searchQuery, setSearchQuery] = useState('');
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -177,24 +176,6 @@ export default function DashboardPage() {
     }));
   }, [summary]);
 
-  const visibleRecentTransactions = useMemo<Transaction[]>(() => {
-    const query = searchQuery.trim().toLowerCase();
-    if (!query) {
-      return recentTransactions;
-    }
-
-    return recentTransactions.filter((txn) => {
-      const amountText = String(txn.amount);
-      return (
-        txn.description.toLowerCase().includes(query) ||
-        txn.vendor.toLowerCase().includes(query) ||
-        txn.category.toLowerCase().includes(query) ||
-        txn.date.toLowerCase().includes(query) ||
-        amountText.includes(query)
-      );
-    });
-  }, [recentTransactions, searchQuery]);
-
   const categoryExpenses = useMemo<CategoryExpense[]>(() => {
     const expenseTotals = totals.filter((item) => item.type === 'expense');
     const totalAmount = expenseTotals.reduce((sum, item) => sum + item.amount, 0);
@@ -222,8 +203,10 @@ export default function DashboardPage() {
         onPeriodChange={setActivePeriod}
         userRole={user?.role ?? 'NormalUser'}
         onAddRecord={() => setShowCreateModal(true)}
-        searchValue={searchQuery}
-        onSearchChange={setSearchQuery}
+        isLoadingData={loading}
+        onRefreshData={() => {
+          void loadDashboardData();
+        }}
       />
       <div
         style={{
@@ -258,7 +241,7 @@ export default function DashboardPage() {
           <ExpensesByCategory categories={categoryExpenses} />
         </div>
         <RecentTransactions
-          transactions={visibleRecentTransactions}
+          transactions={recentTransactions}
           onViewAll={() => navigate('/transactions')}
         />
       </div>
