@@ -1,4 +1,4 @@
-# Finance Dashboard API Contract (Phase 3)
+# Finance Dashboard API Contract
 
 ## Base URL
 
@@ -7,8 +7,8 @@
 ## Conventions
 
 - Content type: `application/json`
-- Auth style: `Authorization: Bearer <supabase_access_token>`
-- Error format:
+- Auth header: `Authorization: Bearer <supabase_access_token>`
+- Common error shape:
 
 ```json
 {
@@ -16,6 +16,15 @@
   "message": "invalid json payload"
 }
 ```
+
+## Role and Scope Matrix
+
+| Endpoint Group | normal_user | analyst | admin |
+| --- | --- | --- | --- |
+| `/api/records` GET | Own records only | Global read | Global read |
+| `/api/records` POST/PATCH/DELETE | Own records only | Not allowed | Full write |
+| `/api/summaries` | Own aggregates only | Global aggregates | Global aggregates |
+| `/api/users` | Not allowed | Not allowed | Full access |
 
 ## Health
 
@@ -27,11 +36,11 @@ Response `200`:
 {
   "status": "ok",
   "service": "finance-dashboard-api",
-  "timestamp": "2026-04-03T10:00:00Z"
+  "timestamp": "2026-04-04T10:00:00Z"
 }
 ```
 
-## Auth (Username/Password + Supabase)
+## Auth
 
 ### POST /auth/register
 
@@ -46,10 +55,10 @@ Request body:
 }
 ```
 
-Validation rules:
+Validation:
 
 - `username`: 3-32 chars, lowercase letters/numbers/dot/dash/underscore
-- `email`: valid email format
+- `email`: valid email
 - `password`: minimum 8 chars
 
 Response `201`:
@@ -71,26 +80,15 @@ Response `201`:
 }
 ```
 
-If email confirmation is required in your Supabase project, access token may be empty and `requires_email_confirmation` will be `true`.
-
 ### POST /auth/login
 
-Request body supports any one of `identifier`, `username`, or `email`, plus `password`.
+Accepts `identifier` or `username` or `email`, plus password.
 
-Example with username:
-
-```json
-{
-  "username": "john.doe",
-  "password": "strong-password-123"
-}
-```
-
-Example with email:
+Request body:
 
 ```json
 {
-  "email": "john@example.com",
+  "identifier": "john.doe",
   "password": "strong-password-123"
 }
 ```
@@ -114,8 +112,7 @@ Response `200`:
 
 ### GET /auth/me
 
-- Protected route.
-- Requires `Authorization: Bearer <access_token>`.
+Protected route.
 
 Response `200`:
 
@@ -132,8 +129,7 @@ Response `200`:
 
 ### POST /auth/refresh
 
-- Reads `sb_refresh_token` from httpOnly cookie.
-- Requests a new access token from Supabase Auth.
+Reads `sb_refresh_token` cookie and returns a new access token.
 
 Response `200`:
 
@@ -151,9 +147,7 @@ Response `200`:
 
 ### POST /auth/logout
 
-- Protected route.
-- Clears `sb_refresh_token` cookie.
-- Calls Supabase logout endpoint when access token is present.
+Protected route. Clears refresh cookie.
 
 Response `200`:
 
@@ -163,110 +157,21 @@ Response `200`:
 }
 ```
 
-## Admin User Management (RBAC)
+## Records API
 
-All endpoints below require:
-
-- Valid bearer token
-- Caller has `admin` role in `user_roles`
-
-### GET /api/users
-
-Response `200`:
-
-```json
-{
-  "users": [
-    {
-      "id": "f3b15f4d-9f5d-4b55-92de-5d05662fd0dc",
-      "auth_user_id": "45f2647b-2f5e-4d98-bb16-267f79e5d69f",
-      "email": "admin@example.com",
-      "full_name": "",
-      "is_active": true,
-      "created_at": "2026-04-03T10:00:00Z",
-      "roles": ["admin"]
-    }
-  ]
-}
-```
-
-### POST /api/users/{id}/roles
-
-Request body:
-
-```json
-{
-  "role": "normal_user"
-}
-```
-
-Response `200`:
-
-```json
-{
-  "ok": true
-}
-```
-
-### DELETE /api/users/{id}/roles
-
-Request body:
-
-```json
-{
-  "role": "normal_user"
-}
-```
-
-Response `200`:
-
-```json
-{
-  "ok": true
-}
-```
-
-### PATCH /api/users/{id}/status
-
-Request body:
-
-```json
-{
-  "is_active": false
-}
-```
-
-Response `200`:
-
-```json
-{
-  "ok": true
-}
-```
-
-## Notes
-
-- `GET /auth/me` also upserts the authenticated user into the `users` table.
-- Apply migration files before using admin endpoints.
-- `backend/migrations/0003_add_username.sql` is required for username-based login.
-- `backend/migrations/0004_replace_viewer_with_normal_user.sql` is required when upgrading from legacy viewer role.
-
-## Financial Records (RBAC)
-
-All endpoints below require a valid bearer token.
-
-- `normal_user`, `analyst`, `admin`: can list records
-- `analyst`, `admin`: list results use global read visibility
-- `normal_user`: list results include own records plus limited visibility for others (sensitive fields such as note and owner id are redacted for non-owned records)
-- `normal_user`, `admin`: can create/update/delete records
-- `normal_user` create/update/delete is scoped to owned records; `admin` can update/delete across owners
+All records endpoints require bearer auth.
 
 ### GET /api/records
+
+Roles:
+
+- normal_user: own records only
+- analyst/admin: global read
 
 Optional query params:
 
 - `type`: `income` or `expense`
-- `category`: exact category match (case-insensitive)
+- `category`: exact category, case-insensitive
 - `start_date`: `YYYY-MM-DD`
 - `end_date`: `YYYY-MM-DD`
 - `limit`: max 100 (default 25)
@@ -289,11 +194,17 @@ Response `200`:
       "created_at": "2026-04-03T12:00:00Z",
       "updated_at": "2026-04-03T12:00:00Z"
     }
-  ]
+  ],
+  "total": 1,
+  "limit": 25,
+  "offset": 0,
+  "has_more": false
 }
 ```
 
 ### POST /api/records
+
+Roles: normal_user, admin.
 
 Request body:
 
@@ -329,7 +240,9 @@ Response `201`:
 
 ### PATCH /api/records/{id}
 
-Request body has same shape as `POST /api/records`.
+Roles: normal_user, admin.
+
+Request body shape is same as create.
 
 Response `200`:
 
@@ -352,6 +265,8 @@ Response `200`:
 
 ### DELETE /api/records/{id}
 
+Roles: normal_user, admin.
+
 Response `200`:
 
 ```json
@@ -360,12 +275,12 @@ Response `200`:
 }
 ```
 
-## Dashboard Summaries (RBAC)
+## Summaries API
 
-All endpoints below require a valid bearer token.
+All summaries endpoints require bearer auth.
 
-- `normal_user`, `analyst`, `admin`: can access summary and trend data
-- Summary/category/trend outputs are organization-level aggregates for all authenticated roles.
+- normal_user: own aggregates only
+- analyst/admin: global aggregates
 
 ### GET /api/summaries
 
@@ -373,7 +288,7 @@ Optional query params:
 
 - `start_date`: `YYYY-MM-DD`
 - `end_date`: `YYYY-MM-DD`
-- `recent_limit`: max 50 (default 5)
+- `recent_limit`: max 50, default 5
 
 Response `200`:
 
@@ -454,3 +369,95 @@ Response `200`:
   ]
 }
 ```
+
+## Admin User Management API
+
+All endpoints below require admin role.
+
+### GET /api/users
+
+Response `200`:
+
+```json
+{
+  "users": [
+    {
+      "id": "f3b15f4d-9f5d-4b55-92de-5d05662fd0dc",
+      "auth_user_id": "45f2647b-2f5e-4d98-bb16-267f79e5d69f",
+      "email": "admin@example.com",
+      "username": "admin",
+      "full_name": "",
+      "is_active": true,
+      "created_at": "2026-04-03T10:00:00Z",
+      "direct_role": "admin",
+      "roles": ["admin"]
+    }
+  ]
+}
+```
+
+### POST /api/users/{id}/roles
+
+Single-role assignment endpoint. Existing role is replaced.
+
+Request body:
+
+```json
+{
+  "role": "normal_user"
+}
+```
+
+Response `200`:
+
+```json
+{
+  "ok": true
+}
+```
+
+### DELETE /api/users/{id}/roles
+
+Current policy enforces one role per user, so remove role is rejected.
+
+Request body:
+
+```json
+{
+  "role": "normal_user"
+}
+```
+
+Response `400`:
+
+```json
+{
+  "error": "bad_request",
+  "message": "single-role policy enforced: assign a different role instead of removing"
+}
+```
+
+### PATCH /api/users/{id}/status
+
+Request body:
+
+```json
+{
+  "is_active": false
+}
+```
+
+Response `200`:
+
+```json
+{
+  "ok": true
+}
+```
+
+## Evaluator Notes
+
+1. `GET /auth/me` upserts user profile data into `users`.
+2. New signups get `DEFAULT_APP_ROLE` if configured.
+3. `BOOTSTRAP_ADMIN_EMAILS` can auto-promote specific emails to admin.
+4. Apply migrations through `backend/migrations/0008_enforce_single_role_per_user.sql` before RBAC evaluation.
