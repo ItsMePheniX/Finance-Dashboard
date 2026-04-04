@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState, type CSSProperties } from 'react';
 import { useNavigate } from 'react-router-dom';
 import type { CategoryExpense, MetricCard, MonthlyData, TimePeriod, Transaction } from '../types';
 import TopBar from '../components/TopBar';
@@ -47,6 +47,152 @@ type TrendsResponse = {
 };
 
 const categoryColors = ['#4f8cff', '#2dd4bf', '#fbbf24', '#a78bfa', '#5c6078', '#f87171'];
+
+const skeletonShimmerStyle: CSSProperties = {
+  background:
+    'linear-gradient(90deg, rgba(46, 51, 72, 0.45) 20%, rgba(92, 96, 120, 0.34) 40%, rgba(46, 51, 72, 0.45) 60%)',
+  backgroundSize: '220% 100%',
+  animation: 'shimmer 1.25s linear infinite',
+};
+
+function SkeletonBlock({
+  height,
+  width = '100%',
+  borderRadius = 'var(--radius-md)',
+}: {
+  height: number | string;
+  width?: number | string;
+  borderRadius?: string;
+}) {
+  return (
+    <div
+      style={{
+        ...skeletonShimmerStyle,
+        width,
+        height,
+        borderRadius,
+      }}
+    />
+  );
+}
+
+function DashboardLoadingAnimation() {
+  return (
+    <>
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(4, minmax(0, 1fr))',
+          gap: '20px',
+        }}
+      >
+        {Array.from({ length: 4 }).map((_, idx) => (
+          <div
+            key={`metric-loading-${idx + 1}`}
+            style={{
+              borderRadius: 'var(--radius-lg)',
+              border: '1px solid var(--color-border-card)',
+              backgroundColor: 'var(--color-bg-card)',
+              padding: '18px',
+              display: 'grid',
+              gap: '12px',
+            }}
+          >
+            <SkeletonBlock height={12} width="44%" />
+            <SkeletonBlock height={28} width="62%" />
+            <SkeletonBlock height={10} width="36%" />
+          </div>
+        ))}
+      </div>
+
+      <div style={{ display: 'flex', gap: '20px' }}>
+        <div
+          style={{
+            flex: 2,
+            borderRadius: 'var(--radius-lg)',
+            border: '1px solid var(--color-border-card)',
+            backgroundColor: 'var(--color-bg-card)',
+            padding: '20px',
+          }}
+        >
+          <SkeletonBlock height={14} width="38%" />
+          <div
+            style={{
+              marginTop: '18px',
+              height: '220px',
+              display: 'flex',
+              alignItems: 'flex-end',
+              gap: '8px',
+            }}
+          >
+            {Array.from({ length: 8 }).map((_, idx) => (
+              <SkeletonBlock
+                key={`trend-loading-${idx + 1}`}
+                width="100%"
+                height={`${90 + ((idx * 17) % 110)}px`}
+                borderRadius="10px"
+              />
+            ))}
+          </div>
+        </div>
+
+        <div
+          style={{
+            flex: 1,
+            borderRadius: 'var(--radius-lg)',
+            border: '1px solid var(--color-border-card)',
+            backgroundColor: 'var(--color-bg-card)',
+            padding: '20px',
+            display: 'grid',
+            gap: '12px',
+          }}
+        >
+          <SkeletonBlock height={14} width="58%" />
+          {Array.from({ length: 5 }).map((_, idx) => (
+            <div
+              key={`category-loading-${idx + 1}`}
+              style={{ display: 'grid', gap: '8px' }}
+            >
+              <SkeletonBlock height={10} width="64%" />
+              <SkeletonBlock height={8} width="100%" borderRadius="999px" />
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div
+        style={{
+          borderRadius: 'var(--radius-lg)',
+          border: '1px solid var(--color-border-card)',
+          backgroundColor: 'var(--color-bg-card)',
+          padding: '20px',
+          display: 'grid',
+          gap: '12px',
+        }}
+      >
+        <SkeletonBlock height={14} width="28%" />
+        {Array.from({ length: 5 }).map((_, idx) => (
+          <div
+            key={`transaction-loading-${idx + 1}`}
+            style={{
+              display: 'grid',
+              gridTemplateColumns: '42px 1fr 110px',
+              gap: '14px',
+              alignItems: 'center',
+            }}
+          >
+            <SkeletonBlock height={42} width={42} borderRadius="var(--radius-md)" />
+            <div style={{ display: 'grid', gap: '8px' }}>
+              <SkeletonBlock height={12} width="62%" />
+              <SkeletonBlock height={10} width="34%" />
+            </div>
+            <SkeletonBlock height={12} width="72%" />
+          </div>
+        ))}
+      </div>
+    </>
+  );
+}
 
 function monthLabel(period: string): string {
   const date = new Date(`${period}-01T00:00:00`);
@@ -203,10 +349,6 @@ export default function DashboardPage() {
         onPeriodChange={setActivePeriod}
         userRole={user?.role ?? 'NormalUser'}
         onAddRecord={() => setShowCreateModal(true)}
-        isLoadingData={loading}
-        onRefreshData={() => {
-          void loadDashboardData();
-        }}
       />
       <div
         style={{
@@ -231,19 +373,43 @@ export default function DashboardPage() {
           </div>
         )}
 
-        {loading && (
-          <div style={{ fontSize: '13px', color: 'var(--color-text-muted)' }}>Loading dashboard data...</div>
+        {loading ? (
+          <>
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                fontSize: '13px',
+                color: 'var(--color-text-muted)',
+              }}
+            >
+              <span
+                style={{
+                  width: 10,
+                  height: 10,
+                  borderRadius: '50%',
+                  backgroundColor: 'var(--color-accent-blue)',
+                  animation: 'pulse-glow 1.1s ease-in-out infinite',
+                }}
+              />
+              Loading dashboard data...
+            </div>
+            <DashboardLoadingAnimation />
+          </>
+        ) : (
+          <>
+            <MetricsRow metrics={metrics} />
+            <div style={{ display: 'flex', gap: '20px' }}>
+              <MonthlyTrendChart data={monthlyData} />
+              <ExpensesByCategory categories={categoryExpenses} />
+            </div>
+            <RecentTransactions
+              transactions={recentTransactions}
+              onViewAll={() => navigate('/transactions')}
+            />
+          </>
         )}
-
-        <MetricsRow metrics={metrics} />
-        <div style={{ display: 'flex', gap: '20px' }}>
-          <MonthlyTrendChart data={monthlyData} />
-          <ExpensesByCategory categories={categoryExpenses} />
-        </div>
-        <RecentTransactions
-          transactions={recentTransactions}
-          onViewAll={() => navigate('/transactions')}
-        />
       </div>
 
       <CreateRecordModal
